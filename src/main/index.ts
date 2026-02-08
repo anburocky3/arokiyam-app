@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, screen } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, screen, Menu, Tray, nativeImage } from 'electron'
 import os from 'os'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -9,6 +9,8 @@ import type { BlinkConfig, OverlayState, OverlayToast, StressSnapshot } from '..
 let mainWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
 let stressMonitor: ReturnType<typeof createStressMonitor> | null = null
+let tray: Tray | null = null
+let isQuitting = false
 
 const getEmptySnapshot = (): StressSnapshot => ({
   kpm: 0,
@@ -34,6 +36,44 @@ const loadRenderer = (window: BrowserWindow, html: string): void => {
   } else {
     window.loadFile(join(__dirname, '../renderer', html))
   }
+}
+
+const getTrayIconPath = (): string => {
+  if (app.isPackaged) {
+    return join(process.resourcesPath, 'resources', 'icon.png')
+  }
+  return join(app.getAppPath(), 'resources', 'icon.png')
+}
+
+const showMainWindow = (): void => {
+  if (!mainWindow) return
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+const createTray = (): void => {
+  if (tray) return
+  const iconPath = getTrayIconPath()
+  const iconImage = nativeImage.createFromPath(iconPath)
+  tray = new Tray(iconImage)
+  tray.setToolTip('Arokiyam')
+
+  const contextMenu = Menu.buildFromTemplate([
+    { label: 'Show Arokiyam', click: () => showMainWindow() },
+    { label: 'Hide', click: () => mainWindow?.hide() },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        mainWindow?.destroy()
+        // isQuitting = true
+        app.quit()
+      }
+    }
+  ])
+
+  tray.setContextMenu(contextMenu)
+  tray.on('double-click', () => showMainWindow())
 }
 
 const applyOverlayMode = (state: OverlayState): void => {
@@ -69,22 +109,34 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
-  })
+  if (mainWindow) {
+    mainWindow.on('ready-to-show', () => {
+      mainWindow?.show()
+    })
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
-  })
+    mainWindow.on('will-resize', (event) => {
+      if (isQuitting) return
+      event.preventDefault()
+      mainWindow?.hide()
+    })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
+    mainWindow.on('close', (event) => {
+      if (isQuitting) return
+      event.preventDefault()
+      mainWindow?.hide()
+    })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  loadRenderer(mainWindow, 'index.html')
+    mainWindow.on('closed', () => {
+      mainWindow = null
+    })
+
+    mainWindow.webContents.setWindowOpenHandler((details) => {
+      shell.openExternal(details.url)
+      return { action: 'deny' }
+    })
+
+    loadRenderer(mainWindow, 'index.html')
+  }
 }
 
 function createOverlayWindow(): void {
@@ -182,6 +234,7 @@ app.whenReady().then(() => {
 
   createWindow()
   createOverlayWindow()
+  createTray()
   stressMonitor.start()
 
   app.on('activate', function () {
@@ -204,6 +257,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  isQuitting = true
   stressMonitor?.stop()
 })
 

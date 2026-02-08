@@ -2,7 +2,7 @@ import './assets/main.css'
 
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { OverlayState, OverlayToast } from '../../shared/monitor'
+import type { StressSnapshot, OverlayState, OverlayToast } from '../../shared/monitor'
 
 const formatCountdown = (endTime: number | null): string => {
   if (!endTime) return '--:--'
@@ -16,14 +16,17 @@ const formatCountdown = (endTime: number | null): string => {
 type OverlayViewState = {
   state: OverlayState
   toast: OverlayToast | null
+  snapshot: StressSnapshot | null
 }
 
 const OverlayApp = (): React.JSX.Element => {
   const [overlayState, setOverlayState] = useState<OverlayViewState>({
     state: { mode: 'normal', breakEndsAt: null, blinkEndsAt: null, breathingActive: false },
-    toast: null
+    toast: null,
+    snapshot: null
   })
   const [, setTick] = useState(0)
+  const [activityToast, setActivityToast] = useState<string | null>(null)
 
   useEffect(() => {
     const unsubscribeState = window.api.onOverlayState((state) => {
@@ -32,9 +35,13 @@ const OverlayApp = (): React.JSX.Element => {
     const unsubscribeToast = window.api.onOverlayToast((toast) => {
       setOverlayState((prev) => ({ ...prev, toast }))
     })
+    const unsubscribeStress = window.api.onStressUpdate((snapshot) => {
+      setOverlayState((prev) => ({ ...prev, snapshot }))
+    })
     return () => {
       unsubscribeState()
       unsubscribeToast()
+      unsubscribeStress()
     }
   }, [])
 
@@ -51,6 +58,42 @@ const OverlayApp = (): React.JSX.Element => {
 
   const toastVisible = overlayState.toast && overlayState.toast.expiresAt > Date.now()
 
+  useEffect(() => {
+    const snapshot = overlayState.snapshot
+    if (!snapshot) {
+      setActivityToast(null)
+      return
+    }
+
+    const now = Date.now()
+    const candidates: Array<{ label: string; time: number }> = []
+
+    if (!snapshot.isBlinkActive) {
+      candidates.push({ label: 'Blink', time: snapshot.nextBlinkAt })
+    }
+    if (!snapshot.isBreakActive) {
+      candidates.push({ label: 'Break', time: snapshot.nextBreakAt })
+    }
+
+    if (!candidates.length) {
+      setActivityToast(null)
+      return
+    }
+
+    const next = candidates.reduce((soonest, item) => (item.time < soonest.time ? item : soonest))
+    const remainingMs = next.time - now
+
+    if (remainingMs > 0 && remainingMs <= 5_000) {
+      const secondsLeft = Math.ceil(remainingMs / 1000)
+      setActivityToast(`${next.label} starts in ${secondsLeft}s`)
+      return
+    }
+
+    if (activityToast && remainingMs <= 0) {
+      setActivityToast(null)
+    }
+  }, [overlayState.snapshot, activityToast, isBreakMode, isBlinkMode])
+
   return (
     <div
       className={`min-h-screen w-full font-['Space_Grotesk'] transition-colors duration-300 ${
@@ -60,6 +103,12 @@ const OverlayApp = (): React.JSX.Element => {
       {toastVisible && (
         <div className="pointer-events-none absolute left-1/2 top-8 -translate-x-1/2 rounded-full bg-black/70 px-6 py-2 text-sm font-medium text-white shadow-lg">
           {overlayState.toast?.message}
+        </div>
+      )}
+
+      {activityToast && !isBreakMode && !isBlinkMode && (
+        <div className="pointer-events-none absolute bottom-8 right-8 rounded-2xl border border-white/20 bg-black/70 px-4 py-3 text-sm font-semibold text-white shadow-lg">
+          {activityToast}
         </div>
       )}
 

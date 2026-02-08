@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { formatBytes, formatDateTime, formatUptime, getGreeting } from './helpers/system'
+import { useEffect, useRef, useState } from 'react'
+import { formatDateTime, formatUptime, getGreeting } from './helpers/system'
 import { getInitialTheme, getNextTheme } from './helpers/theme'
 import { StressSection } from './components/StressSection'
 import { useStressMonitor } from './hooks/useStressMonitor'
@@ -50,6 +50,10 @@ function App(): React.JSX.Element {
   const [blinkConfig, setBlinkConfig] = useState<BlinkConfig>(getStoredBlinkConfig)
   const shouldTrackUptime = uptimeSeconds !== null
   const stressSnapshot = useStressMonitor()
+  const [activityToast, setActivityToast] = useState<{ message: string; expiresAt: number } | null>(
+    null
+  )
+  const snapshotRef = useRef(stressSnapshot)
 
   useEffect(() => {
     let isMounted = true
@@ -92,10 +96,52 @@ function App(): React.JSX.Element {
     void window.api.setBlinkConfig(blinkConfig)
   }, [blinkConfig])
 
+  useEffect(() => {
+    snapshotRef.current = stressSnapshot
+  }, [stressSnapshot])
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const snapshot = snapshotRef.current
+      if (!snapshot) return
+
+      const now = Date.now()
+      const candidates: Array<{ label: string; time: number }> = []
+
+      if (!snapshot.isBlinkActive) {
+        candidates.push({ label: 'Blink', time: snapshot.nextBlinkAt })
+      }
+      if (!snapshot.isBreakActive) {
+        candidates.push({ label: 'Break', time: snapshot.nextBreakAt })
+      }
+
+      if (!candidates.length) return
+
+      const next = candidates.reduce((soonest, item) => (item.time < soonest.time ? item : soonest))
+      const remainingMs = next.time - now
+
+      if (remainingMs > 0 && remainingMs <= 5_000) {
+        const secondsLeft = Math.ceil(remainingMs / 1000)
+        setActivityToast({
+          message: `${next.label} starts in ${secondsLeft}s`,
+          expiresAt: next.time
+        })
+        return
+      }
+
+      if (activityToast && activityToast.expiresAt <= now) {
+        setActivityToast(null)
+      }
+    }, 1000)
+
+    return () => clearInterval(id)
+  }, [activityToast])
+
   const greeting = getGreeting(currentTime)
 
   const uptimeLabel = uptimeSeconds === null ? '--' : formatUptime(uptimeSeconds)
-  const bootedAt = uptimeSeconds === null ? null : new Date(Date.now() - uptimeSeconds * 1000)
+  const bootedAt =
+    uptimeSeconds === null ? null : new Date(currentTime.getTime() - uptimeSeconds * 1000)
 
   const handleStartBreak = (): void => {
     void window.api.requestBreak()
@@ -116,6 +162,11 @@ function App(): React.JSX.Element {
 
   return (
     <div className="relative min-h-screen bg-[radial-gradient(circle_at_top,#f8efe4_0%,#f3f6ff_45%,#eef7f1_100%)] px-6 py-8 font-['Space_Grotesk'] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,#1218260%,#0f172a55%,#0b1120_100%)] dark:text-slate-100 lg:px-12">
+      {activityToast && (
+        <div className="absolute right-6 top-20 z-50 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm font-semibold text-slate-700 shadow-lg dark:border-slate-700/60 dark:bg-slate-900/90 dark:text-slate-100">
+          {activityToast.message}
+        </div>
+      )}
       <button
         className="absolute right-6 top-6 inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white/70 text-slate-700 shadow-sm transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60 z-99"
         onClick={() => setTheme(getNextTheme(theme))}
@@ -398,6 +449,30 @@ function App(): React.JSX.Element {
           </div>
         </section>
       )}
+
+      <div className="mx-auto mt-12 w-full max-w-6xl text-center text-xs text-slate-500 dark:text-slate-400 ">
+        <span className="text-sm mb-2 block font-medium text-slate-900 ">
+          Made with ❤️ by{' '}
+          <a
+            href="https://anbuselvan-annamalai.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-green-800"
+          >
+            Anbuselvan Rocky
+          </a>
+        </span>
+        {/* (
+        <a
+          href="https://github.com/anburocky3/arokiyam-app"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          GitHub
+        </a>
+        ) */}
+        <div>All Rights Reserved &copy; {new Date().getFullYear()} </div>
+      </div>
     </div>
   )
 }
