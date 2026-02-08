@@ -12,6 +12,14 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
+    build: {
+      rollupOptions: {
+        input: {
+          main: resolve('src/renderer/index.html'),
+          overlay: resolve('src/renderer/overlay.html')
+        }
+      }
+    },
     plugins: [react(), tailwindcss()]
   }
 })

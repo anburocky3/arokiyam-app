@@ -1,1 +1,56 @@
 @import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@keyframes breath {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  33% {
+    transform: scale(1.4);
+  }
+  66% {
+    transform: scale(1.4);
+  }
+}
+
+@keyframes blink-eye {
+  0%,
+  8%,
+  16%,
+  100% {
+    transform: scaleY(1);
+  }
+  4%,
+  12% {
+    transform: scaleY(0.15);
+  }
+}
+
+@keyframes eye-glow {
+  0% {
+    filter: hue-rotate(0deg) saturate(1.2);
+  }
+  50% {
+    filter: hue-rotate(120deg) saturate(1.6);
+  }
+  100% {
+    filter: hue-rotate(240deg) saturate(1.2);
+  }
+}
+
+@layer utilities {
+  .animate-breath {
+    animation: breath 12s ease-in-out infinite;
+  }
+
+  .animate-blink {
+    animation: blink-eye 4s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  .animate-eye-glow {
+    animation: eye-glow 6s linear infinite;
+  }
+}
