@@ -1,16 +1,66 @@
-import { app, shell, BrowserWindow, ipcMain, screen, Menu, Tray, nativeImage } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  screen,
+  Menu,
+  Tray,
+  nativeImage,
+  Notification
+} from 'electron'
 import os from 'os'
 import { join } from 'path'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { createStressMonitor } from './stressMonitor'
-import type { BlinkConfig, OverlayState, OverlayToast, StressSnapshot } from '../shared/monitor'
+import type {
+  BlinkConfig,
+  DrinkConfig,
+  HydrationConfig,
+  OverlayState,
+  OverlayToast,
+  StressSnapshot
+} from '../shared/monitor'
 
 let mainWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
 let stressMonitor: ReturnType<typeof createStressMonitor> | null = null
 let tray: Tray | null = null
 let isQuitting = false
+
+type AppPreferences = {
+  notificationsEnabled: boolean
+}
+
+const defaultAppPreferences: AppPreferences = {
+  notificationsEnabled: true
+}
+
+const preferencesPath = join(app.getPath('userData'), 'preferences.json')
+
+const readPreferences = (): AppPreferences => {
+  try {
+    if (!existsSync(preferencesPath)) return defaultAppPreferences
+    const raw = readFileSync(preferencesPath, 'utf-8')
+    const parsed = JSON.parse(raw) as Partial<AppPreferences>
+    return {
+      ...defaultAppPreferences,
+      ...parsed
+    }
+  } catch {
+    return defaultAppPreferences
+  }
+}
+
+const writePreferences = (preferences: AppPreferences): void => {
+  try {
+    writeFileSync(preferencesPath, JSON.stringify(preferences, null, 2), 'utf-8')
+  } catch {
+    // Ignore write failures and continue with in-memory state.
+  }
+}
 
 const getEmptySnapshot = (): StressSnapshot => ({
   kpm: 0,
@@ -22,9 +72,17 @@ const getEmptySnapshot = (): StressSnapshot => ({
   breakEndsAt: null,
   isBlinkActive: false,
   blinkEndsAt: null,
+  isHydrationActive: false,
+  hydrationEndsAt: null,
+  isDrinkActive: false,
+  drinkEndsAt: null,
   nextBreakAt: Date.now() + 45 * 60 * 1000,
   nextBlinkAt: Date.now() + 12 * 60 * 1000,
+  nextHydrationAt: Date.now() + 45 * 60 * 1000,
+  nextDrinkAt: Date.now() + 120 * 60 * 1000,
   lastBreakAt: null,
+  lastHydrationAt: null,
+  lastDrinkAt: null,
   scrollingStreakMs: 0
 })
 
@@ -78,7 +136,12 @@ const createTray = (): void => {
 
 const applyOverlayMode = (state: OverlayState): void => {
   if (!overlayWindow) return
-  if (state.mode === 'break' || state.mode === 'blink') {
+  if (
+    state.mode === 'break' ||
+    state.mode === 'blink' ||
+    state.mode === 'hydration' ||
+    state.mode === 'drink'
+  ) {
     overlayWindow.setIgnoreMouseEvents(false)
     overlayWindow.setFocusable(true)
     overlayWindow.show()
@@ -114,16 +177,11 @@ function createWindow(): void {
       mainWindow?.show()
     })
 
-    mainWindow.on('will-resize', (event) => {
-      if (isQuitting) return
-      event.preventDefault()
-      mainWindow?.hide()
-    })
-
     mainWindow.on('close', (event) => {
       if (isQuitting) return
       event.preventDefault()
-      mainWindow?.hide()
+      mainWindow?.minimize()
+      mainWindow?.setSkipTaskbar(false)
     })
 
     mainWindow.on('closed', () => {
@@ -181,6 +239,17 @@ function createOverlayWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  app.setName('Arokiyam')
+  let appPreferences = readPreferences()
+
+  if (Notification.isSupported() && appPreferences.notificationsEnabled) {
+    const readyNotice = new Notification({
+      title: app.getName(),
+      body: 'Notifications are enabled.'
+    })
+    readyNotice.show()
+  }
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('cdn.arokiyam')
 
@@ -204,6 +273,7 @@ app.whenReady().then(() => {
   })
 
   stressMonitor = createStressMonitor()
+  let previousActivityMode: OverlayState['mode'] = 'normal'
 
   const broadcast = <T>(channel: string, payload: T): void => {
     BrowserWindow.getAllWindows().forEach((window) => {
@@ -218,6 +288,24 @@ app.whenReady().then(() => {
   stressMonitor.onOverlayState((state: OverlayState) => {
     broadcast('overlay:state', state)
     applyOverlayMode(state)
+
+    const activityStarted = previousActivityMode === 'normal' && state.mode !== 'normal'
+    if (activityStarted && Notification.isSupported() && appPreferences.notificationsEnabled) {
+      const activityLabel =
+        state.mode === 'break'
+          ? 'Break'
+          : state.mode === 'blink'
+            ? 'Blink'
+            : state.mode === 'hydration'
+              ? 'Hydration'
+              : 'Drink'
+      const notification = new Notification({
+        title: `${app.getName()} reminder`,
+        body: `${activityLabel} activity started.`
+      })
+      notification.show()
+    }
+    previousActivityMode = state.mode
   })
 
   stressMonitor.onOverlayToast((toast: OverlayToast) => {
@@ -226,11 +314,46 @@ app.whenReady().then(() => {
 
   ipcMain.handle('stress:getSnapshot', () => stressMonitor?.getSnapshot() ?? getEmptySnapshot())
   ipcMain.handle('break:request', () => stressMonitor?.requestBreak())
+  ipcMain.handle('break:skip', () => stressMonitor?.skipBreak())
+  ipcMain.handle('blink:request', () => stressMonitor?.requestBlink())
   ipcMain.handle('blink:setConfig', (_event, config: BlinkConfig) =>
     stressMonitor?.setBlinkConfig(config)
   )
   ipcMain.handle('blink:skip', () => stressMonitor?.skipBlink())
   ipcMain.handle('blink:snooze', () => stressMonitor?.snoozeBlink())
+  ipcMain.handle('hydration:request', () => stressMonitor?.requestHydration())
+  ipcMain.handle('hydration:setConfig', (_event, config: HydrationConfig) =>
+    stressMonitor?.setHydrationConfig(config)
+  )
+  ipcMain.handle('hydration:complete', () => stressMonitor?.completeHydration())
+  ipcMain.handle('hydration:snooze', () => stressMonitor?.snoozeHydration())
+  ipcMain.handle('drink:request', () => stressMonitor?.requestDrink())
+  ipcMain.handle('drink:setConfig', (_event, config: DrinkConfig) =>
+    stressMonitor?.setDrinkConfig(config)
+  )
+  ipcMain.handle('drink:complete', () => stressMonitor?.completeDrink())
+  ipcMain.handle('drink:snooze', () => stressMonitor?.snoozeDrink())
+
+  ipcMain.handle('settings:getAutoStart', () => {
+    return app.getLoginItemSettings().openAtLogin
+  })
+  ipcMain.handle('settings:setAutoStart', (_event, enabled: boolean) => {
+    app.setLoginItemSettings({ openAtLogin: enabled })
+    return app.getLoginItemSettings().openAtLogin
+  })
+  ipcMain.handle('settings:getNotificationsEnabled', () => appPreferences.notificationsEnabled)
+  ipcMain.handle('settings:setNotificationsEnabled', (_event, enabled: boolean) => {
+    appPreferences = { ...appPreferences, notificationsEnabled: enabled }
+    writePreferences(appPreferences)
+    if (enabled && Notification.isSupported()) {
+      const notification = new Notification({
+        title: app.getName(),
+        body: 'Notifications enabled.'
+      })
+      notification.show()
+    }
+    return appPreferences.notificationsEnabled
+  })
 
   createWindow()
   createOverlayWindow()

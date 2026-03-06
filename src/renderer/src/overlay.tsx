@@ -1,6 +1,6 @@
 import './assets/main.css'
 
-import { StrictMode, useEffect, useState } from 'react'
+import { StrictMode, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { StressSnapshot, OverlayState, OverlayToast } from '../../shared/monitor'
 
@@ -19,17 +19,41 @@ type OverlayViewState = {
   snapshot: StressSnapshot | null
 }
 
-const OverlayApp = (): React.JSX.Element => {
+type HealthStrictness = 'basic' | 'medium' | 'strict'
+
+const HEALTH_STRICTNESS_KEY = 'arokiyam-health-strictness'
+
+const getStoredHealthStrictness = (): HealthStrictness => {
+  const stored = window.localStorage.getItem(HEALTH_STRICTNESS_KEY)
+  if (stored === 'basic' || stored === 'medium' || stored === 'strict') return stored
+  return 'basic'
+}
+
+export const OverlayApp = (): React.JSX.Element => {
   const [overlayState, setOverlayState] = useState<OverlayViewState>({
-    state: { mode: 'normal', breakEndsAt: null, blinkEndsAt: null, breathingActive: false },
+    state: {
+      mode: 'normal',
+      breakEndsAt: null,
+      blinkEndsAt: null,
+      hydrationEndsAt: null,
+      drinkEndsAt: null,
+      breathingActive: false
+    },
     toast: null,
     snapshot: null
   })
-  const [, setTick] = useState(0)
-  const [activityToast, setActivityToast] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  const [healthStrictness, setHealthStrictness] =
+    useState<HealthStrictness>(getStoredHealthStrictness)
+  const [modeStartAt, setModeStartAt] = useState<number | null>(null)
+  const lastModeRef = useRef<OverlayState['mode']>('normal')
 
   useEffect(() => {
     const unsubscribeState = window.api.onOverlayState((state) => {
+      if (state.mode !== lastModeRef.current) {
+        setModeStartAt(state.mode === 'normal' ? null : Date.now())
+        lastModeRef.current = state.mode
+      }
       setOverlayState((prev) => ({ ...prev, state }))
     })
     const unsubscribeToast = window.api.onOverlayToast((toast) => {
@@ -46,26 +70,61 @@ const OverlayApp = (): React.JSX.Element => {
   }, [])
 
   useEffect(() => {
-    const id = setInterval(() => setTick((value) => value + 1), 1000)
+    const handleStorage = (event: StorageEvent): void => {
+      if (event.key !== HEALTH_STRICTNESS_KEY) return
+      setHealthStrictness(getStoredHealthStrictness())
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
 
   const isBreakMode = overlayState.state.mode === 'break'
   const isBlinkMode = overlayState.state.mode === 'blink'
-  const countdown = formatCountdown(
-    isBlinkMode ? overlayState.state.blinkEndsAt : overlayState.state.breakEndsAt
-  )
+  const isHydrationMode = overlayState.state.mode === 'hydration'
+  const isDrinkMode = overlayState.state.mode === 'drink'
+  let countdownTarget = overlayState.state.breakEndsAt
+  if (isBlinkMode) {
+    countdownTarget = overlayState.state.blinkEndsAt
+  } else if (isHydrationMode) {
+    countdownTarget = overlayState.state.hydrationEndsAt
+  } else if (isDrinkMode) {
+    countdownTarget = overlayState.state.drinkEndsAt
+  }
+  const countdown = formatCountdown(countdownTarget)
 
-  const toastVisible = overlayState.toast && overlayState.toast.expiresAt > Date.now()
+  const toastVisible = overlayState.toast && overlayState.toast.expiresAt > now
 
-  useEffect(() => {
+  const skipDelayMs = 10_000
+  const skipUnlockAt =
+    healthStrictness === 'medium' && modeStartAt ? modeStartAt + skipDelayMs : null
+  const skipLocked = skipUnlockAt ? now < skipUnlockAt : false
+  const canSkipOrSnooze = healthStrictness === 'basic' || !skipLocked
+  const showSkipOrSnooze = healthStrictness !== 'strict'
+  const showEligibleControls = showSkipOrSnooze && canSkipOrSnooze
+  const actionFadeClass = 'opacity-80 transition-opacity hover:opacity-100'
+  const skipUnlockIn = skipUnlockAt ? Math.max(0, Math.ceil((skipUnlockAt - now) / 1000)) : 0
+  const showSkipCountdown = showSkipOrSnooze && !canSkipOrSnooze && skipUnlockIn > 0
+
+  let overlayClass = 'bg-transparent text-white'
+  if (isBreakMode || isBlinkMode) {
+    overlayClass = 'bg-black/95 text-white'
+  } else if (isHydrationMode) {
+    overlayClass =
+      'bg-[radial-gradient(circle_at_top,#0ea5e9_0%,#0f172a_55%,#020617_100%)] text-white'
+  } else if (isDrinkMode) {
+    overlayClass =
+      'bg-[radial-gradient(circle_at_top,#f59e0b_0%,#4b2a14_55%,#1f1208_100%)] text-white'
+  }
+
+  const activityToast = useMemo(() => {
     const snapshot = overlayState.snapshot
-    if (!snapshot) {
-      setActivityToast(null)
-      return
-    }
+    if (!snapshot) return null
 
-    const now = Date.now()
     const candidates: Array<{ label: string; time: number }> = []
 
     if (!snapshot.isBlinkActive) {
@@ -74,31 +133,29 @@ const OverlayApp = (): React.JSX.Element => {
     if (!snapshot.isBreakActive) {
       candidates.push({ label: 'Break', time: snapshot.nextBreakAt })
     }
-
-    if (!candidates.length) {
-      setActivityToast(null)
-      return
+    if (!snapshot.isHydrationActive) {
+      candidates.push({ label: 'Hydration', time: snapshot.nextHydrationAt })
     }
+    if (!snapshot.isDrinkActive) {
+      candidates.push({ label: 'Drink', time: snapshot.nextDrinkAt })
+    }
+
+    if (!candidates.length) return null
 
     const next = candidates.reduce((soonest, item) => (item.time < soonest.time ? item : soonest))
     const remainingMs = next.time - now
 
     if (remainingMs > 0 && remainingMs <= 5_000) {
       const secondsLeft = Math.ceil(remainingMs / 1000)
-      setActivityToast(`${next.label} starts in ${secondsLeft}s`)
-      return
+      return `${next.label} starts in ${secondsLeft}s`
     }
 
-    if (activityToast && remainingMs <= 0) {
-      setActivityToast(null)
-    }
-  }, [overlayState.snapshot, activityToast, isBreakMode, isBlinkMode])
+    return null
+  }, [overlayState.snapshot, now])
 
   return (
     <div
-      className={`min-h-screen w-full font-['Space_Grotesk'] transition-colors duration-300 ${
-        isBreakMode || isBlinkMode ? 'bg-black/95 text-white' : 'bg-transparent text-white'
-      }`}
+      className={`min-h-screen w-full font-['Space_Grotesk'] transition-colors duration-300 ${overlayClass}`}
     >
       {toastVisible && (
         <div className="pointer-events-none absolute left-1/2 top-8 -translate-x-1/2 rounded-full bg-black/70 px-6 py-2 text-sm font-medium text-white shadow-lg">
@@ -106,7 +163,7 @@ const OverlayApp = (): React.JSX.Element => {
         </div>
       )}
 
-      {activityToast && !isBreakMode && !isBlinkMode && (
+      {activityToast && !isBreakMode && !isBlinkMode && !isHydrationMode && !isDrinkMode && (
         <div className="pointer-events-none absolute bottom-8 right-8 rounded-2xl border border-white/20 bg-black/70 px-4 py-3 text-sm font-semibold text-white shadow-lg">
           {activityToast}
         </div>
@@ -133,6 +190,17 @@ const OverlayApp = (): React.JSX.Element => {
             <p className="text-sm text-white/70">Deep breath sync</p>
             <p className="text-3xl font-semibold">{countdown}</p>
           </div>
+          {showEligibleControls && (
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                className={`rounded-full border border-white/40 bg-white/15 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/70 ${actionFadeClass}`}
+                onClick={() => void window.api.skipBreak()}
+                type="button"
+              >
+                Skip
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -161,21 +229,129 @@ const OverlayApp = (): React.JSX.Element => {
             <p className="text-3xl font-semibold">{countdown}</p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <button
-              className="rounded-full border border-white/40 bg-white/10 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/70"
-              onClick={() => void window.api.skipBlink()}
-              type="button"
-            >
-              Skip
-            </button>
-            <button
-              className="rounded-full border border-white/40 bg-white/20 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/70"
-              onClick={() => void window.api.snoozeBlink()}
-              type="button"
-            >
-              Snooze
-            </button>
+            {showEligibleControls && (
+              <button
+                className={`rounded-full border border-white/40 bg-white/10 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/70 ${actionFadeClass}`}
+                onClick={() => void window.api.skipBlink()}
+                type="button"
+              >
+                Skip
+              </button>
+            )}
+            {showEligibleControls && (
+              <button
+                className={`rounded-full border border-white/40 bg-white/20 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/70 ${actionFadeClass}`}
+                onClick={() => void window.api.snoozeBlink()}
+                type="button"
+              >
+                Snooze
+              </button>
+            )}
           </div>
+        </div>
+      )}
+
+      {isHydrationMode && (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-6 text-center">
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.4em] text-white/70">Hydration lock</p>
+            <h1 className="text-4xl font-semibold md:text-5xl font-['Fraunces']">
+              Drink some water
+            </h1>
+            <p className="text-base text-white/70">
+              Slow sips. Reset your focus and keep your body steady.
+            </p>
+          </div>
+          <div className="relative flex items-center justify-center">
+            <div className="absolute -inset-10 rounded-full bg-sky-500/20 blur-3xl" />
+            <div className="relative h-60 w-40 rounded-[2.5rem] border border-white/30 bg-white/5 p-4 shadow-[0_0_40px_rgba(56,189,248,0.35)]">
+              <div className="relative h-full w-full overflow-hidden rounded-4xl">
+                <div className="absolute inset-x-0 bottom-0 h-3/5 rounded-4xl bg-linear-to-b from-cyan-300/80 via-sky-400/70 to-blue-600/80 animate-water-rise" />
+                <div className="absolute inset-x-0 bottom-0 h-3/5 rounded-4xl bg-white/10 animate-water-wave" />
+                <span className="absolute bottom-6 left-6 h-3 w-3 rounded-full bg-white/80 animate-bubble" />
+                <span className="absolute bottom-10 right-8 h-2 w-2 rounded-full bg-white/60 animate-bubble" />
+                <span className="absolute bottom-16 left-10 h-2.5 w-2.5 rounded-full bg-white/70 animate-bubble" />
+              </div>
+              <div className="absolute inset-x-6 top-6 h-1 rounded-full bg-white/30" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-white/70">Hydration in progress</p>
+            <p className="text-3xl font-semibold">{countdown}</p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              className="rounded-full border border-white/40 bg-white/15 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/70"
+              onClick={() => void window.api.completeHydration()}
+              type="button"
+            >
+              I drank
+            </button>
+            {showEligibleControls && (
+              <button
+                className={`rounded-full border border-white/40 bg-white/25 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/70 ${actionFadeClass}`}
+                onClick={() => void window.api.snoozeHydration()}
+                type="button"
+              >
+                Snooze
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isDrinkMode && (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-6 text-center">
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.4em] text-white/70">Focus drink</p>
+            <h1 className="text-4xl font-semibold md:text-5xl font-['Fraunces']">
+              Coffee, tea, or juice
+            </h1>
+            <p className="text-base text-white/70">
+              Take a sip to stay healthy and focused on development.
+            </p>
+          </div>
+          <div className="relative flex items-center justify-center">
+            <div className="absolute -inset-10 rounded-full bg-amber-400/20 blur-3xl" />
+            <div className="relative flex h-48 w-40 items-end justify-center">
+              <div className="absolute -top-6 left-1/2 h-12 w-12 -translate-x-1/2 rounded-full border border-white/30 bg-white/5" />
+              <div className="absolute top-0 left-1/2 h-20 w-24 -translate-x-1/2">
+                <span className="absolute left-2 top-0 h-12 w-4 rounded-full bg-white/20 blur-sm animate-steam" />
+                <span className="absolute right-2 top-3 h-10 w-3 rounded-full bg-white/20 blur-sm animate-steam" />
+              </div>
+              <div className="relative h-32 w-32 rounded-3xl border border-white/30 bg-white/10 shadow-[0_0_30px_rgba(251,191,36,0.35)]">
+                <div className="absolute inset-x-4 top-4 h-6 rounded-2xl bg-white/15" />
+                <div className="absolute inset-x-6 bottom-6 h-10 rounded-2xl bg-linear-to-r from-amber-300/80 via-orange-400/70 to-rose-400/70 animate-cup-wave" />
+              </div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-white/70">Focus drink in progress</p>
+            <p className="text-3xl font-semibold">{countdown}</p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              className="rounded-full border border-white/40 bg-white/15 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/70"
+              onClick={() => void window.api.completeDrink()}
+              type="button"
+            >
+              Done
+            </button>
+            {showEligibleControls && (
+              <button
+                className={`rounded-full border border-white/40 bg-white/25 px-5 py-2 text-sm font-semibold text-white transition hover:border-white/70 ${actionFadeClass}`}
+                onClick={() => void window.api.snoozeDrink()}
+                type="button"
+              >
+                Snooze
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {showSkipCountdown && (isBreakMode || isBlinkMode || isHydrationMode || isDrinkMode) && (
+        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 text-xs font-medium text-white/70">
+          You can skip this in {skipUnlockIn}s
         </div>
       )}
     </div>

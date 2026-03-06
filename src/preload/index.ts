@@ -1,15 +1,40 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { BlinkConfig, OverlayState, OverlayToast, StressSnapshot } from '../shared/monitor'
+import type {
+  BlinkConfig,
+  DrinkConfig,
+  HydrationConfig,
+  OverlayState,
+  OverlayToast,
+  StressSnapshot
+} from '../shared/monitor'
 
 // Custom APIs for renderer
 const api = {
   getSystemInfo: () => ipcRenderer.invoke('system:getInfo'),
+  getAutoStart: () => ipcRenderer.invoke('settings:getAutoStart') as Promise<boolean>,
+  setAutoStart: (enabled: boolean) =>
+    ipcRenderer.invoke('settings:setAutoStart', enabled) as Promise<boolean>,
+  getNotificationsEnabled: () =>
+    ipcRenderer.invoke('settings:getNotificationsEnabled') as Promise<boolean>,
+  setNotificationsEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke('settings:setNotificationsEnabled', enabled) as Promise<boolean>,
   getStressSnapshot: () => ipcRenderer.invoke('stress:getSnapshot') as Promise<StressSnapshot>,
   requestBreak: () => ipcRenderer.invoke('break:request') as Promise<void>,
+  skipBreak: () => ipcRenderer.invoke('break:skip') as Promise<void>,
+  requestBlink: () => ipcRenderer.invoke('blink:request') as Promise<void>,
   setBlinkConfig: (config: BlinkConfig) => ipcRenderer.invoke('blink:setConfig', config),
   skipBlink: () => ipcRenderer.invoke('blink:skip') as Promise<void>,
   snoozeBlink: () => ipcRenderer.invoke('blink:snooze') as Promise<void>,
+  requestHydration: () => ipcRenderer.invoke('hydration:request') as Promise<void>,
+  setHydrationConfig: (config: HydrationConfig) =>
+    ipcRenderer.invoke('hydration:setConfig', config),
+  completeHydration: () => ipcRenderer.invoke('hydration:complete') as Promise<void>,
+  snoozeHydration: () => ipcRenderer.invoke('hydration:snooze') as Promise<void>,
+  requestDrink: () => ipcRenderer.invoke('drink:request') as Promise<void>,
+  setDrinkConfig: (config: DrinkConfig) => ipcRenderer.invoke('drink:setConfig', config),
+  completeDrink: () => ipcRenderer.invoke('drink:complete') as Promise<void>,
+  snoozeDrink: () => ipcRenderer.invoke('drink:snooze') as Promise<void>,
   onStressUpdate: (callback: (snapshot: StressSnapshot) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, snapshot: StressSnapshot): void => {
       callback(snapshot)

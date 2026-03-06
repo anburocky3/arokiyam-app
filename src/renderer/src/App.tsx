@@ -4,16 +4,6 @@ import { getInitialTheme, getNextTheme } from './helpers/theme'
 import { StressSection } from './components/StressSection'
 import { useStressMonitor } from './hooks/useStressMonitor'
 
-type SystemInfo = {
-  hostname: string
-  platform: string
-  release: string
-  arch: string
-  totalMem: number
-  freeMem: number
-  uptime: number
-}
-
 type BlinkConfig = {
   enabled: boolean
   minMinutes: number
@@ -22,12 +12,50 @@ type BlinkConfig = {
   snoozeMinutes: number
 }
 
+type HydrationConfig = {
+  enabled: boolean
+  intervalMinutes: number
+  durationSeconds: number
+  snoozeMinutes: number
+}
+
+type DrinkConfig = {
+  enabled: boolean
+  intervalMinutes: number
+  durationSeconds: number
+  snoozeMinutes: number
+}
+
+type HealthStrictness = 'basic' | 'medium' | 'strict'
+
 const defaultBlinkConfig: BlinkConfig = {
   enabled: true,
   minMinutes: 8,
   maxMinutes: 18,
   durationSeconds: 6,
   snoozeMinutes: 3
+}
+
+const defaultHydrationConfig: HydrationConfig = {
+  enabled: true,
+  intervalMinutes: 45,
+  durationSeconds: 25,
+  snoozeMinutes: 10
+}
+
+const defaultDrinkConfig: DrinkConfig = {
+  enabled: true,
+  intervalMinutes: 120,
+  durationSeconds: 30,
+  snoozeMinutes: 20
+}
+
+const defaultHealthStrictness: HealthStrictness = 'basic'
+
+const healthStrictnessLabels: Record<HealthStrictness, string> = {
+  basic: 'Basic',
+  medium: 'Medium',
+  strict: 'Health conscious'
 }
 
 const getStoredBlinkConfig = (): BlinkConfig => {
@@ -41,13 +69,46 @@ const getStoredBlinkConfig = (): BlinkConfig => {
   }
 }
 
+const getStoredHydrationConfig = (): HydrationConfig => {
+  const stored = window.localStorage.getItem('arokiyam-hydration-config')
+  if (!stored) return defaultHydrationConfig
+  try {
+    const parsed = JSON.parse(stored) as HydrationConfig
+    return { ...defaultHydrationConfig, ...parsed }
+  } catch {
+    return defaultHydrationConfig
+  }
+}
+
+const getStoredDrinkConfig = (): DrinkConfig => {
+  const stored = window.localStorage.getItem('arokiyam-drink-config')
+  if (!stored) return defaultDrinkConfig
+  try {
+    const parsed = JSON.parse(stored) as DrinkConfig
+    return { ...defaultDrinkConfig, ...parsed }
+  } catch {
+    return defaultDrinkConfig
+  }
+}
+
+const getStoredHealthStrictness = (): HealthStrictness => {
+  const stored = window.localStorage.getItem('arokiyam-health-strictness')
+  if (stored === 'basic' || stored === 'medium' || stored === 'strict') return stored
+  return defaultHealthStrictness
+}
+
 function App(): React.JSX.Element {
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null)
   const [uptimeSeconds, setUptimeSeconds] = useState<number | null>(null)
   const [currentTime, setCurrentTime] = useState(() => new Date())
   const [activeMenu, setActiveMenu] = useState<'dashboard' | 'preferences' | 'support'>('dashboard')
   const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme)
   const [blinkConfig, setBlinkConfig] = useState<BlinkConfig>(getStoredBlinkConfig)
+  const [hydrationConfig, setHydrationConfig] = useState<HydrationConfig>(getStoredHydrationConfig)
+  const [drinkConfig, setDrinkConfig] = useState<DrinkConfig>(getStoredDrinkConfig)
+  const [healthStrictness, setHealthStrictness] =
+    useState<HealthStrictness>(getStoredHealthStrictness)
+  const [autoStartEnabled, setAutoStartEnabled] = useState(true)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const shouldTrackUptime = uptimeSeconds !== null
   const stressSnapshot = useStressMonitor()
   const [activityToast, setActivityToast] = useState<{ message: string; expiresAt: number } | null>(
@@ -61,13 +122,41 @@ function App(): React.JSX.Element {
       .getSystemInfo()
       .then((info) => {
         if (!isMounted) return
-        setSystemInfo(info)
         setUptimeSeconds(Math.floor(info.uptime))
       })
       .catch(() => {
         if (!isMounted) return
-        setSystemInfo(null)
+        setUptimeSeconds(null)
       })
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+    void window.api
+      .getAutoStart()
+      .then((enabled) => {
+        if (!isMounted) return
+        setAutoStartEnabled(enabled)
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setAutoStartEnabled(false)
+      })
+
+    void window.api
+      .getNotificationsEnabled()
+      .then((enabled) => {
+        if (!isMounted) return
+        setNotificationsEnabled(enabled)
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setNotificationsEnabled(true)
+      })
+
     return () => {
       isMounted = false
     }
@@ -97,6 +186,20 @@ function App(): React.JSX.Element {
   }, [blinkConfig])
 
   useEffect(() => {
+    window.localStorage.setItem('arokiyam-hydration-config', JSON.stringify(hydrationConfig))
+    void window.api.setHydrationConfig(hydrationConfig)
+  }, [hydrationConfig])
+
+  useEffect(() => {
+    window.localStorage.setItem('arokiyam-drink-config', JSON.stringify(drinkConfig))
+    void window.api.setDrinkConfig(drinkConfig)
+  }, [drinkConfig])
+
+  useEffect(() => {
+    window.localStorage.setItem('arokiyam-health-strictness', healthStrictness)
+  }, [healthStrictness])
+
+  useEffect(() => {
     snapshotRef.current = stressSnapshot
   }, [stressSnapshot])
 
@@ -113,6 +216,12 @@ function App(): React.JSX.Element {
       }
       if (!snapshot.isBreakActive) {
         candidates.push({ label: 'Break', time: snapshot.nextBreakAt })
+      }
+      if (!snapshot.isHydrationActive) {
+        candidates.push({ label: 'Hydration', time: snapshot.nextHydrationAt })
+      }
+      if (!snapshot.isDrinkActive) {
+        candidates.push({ label: 'Drink', time: snapshot.nextDrinkAt })
       }
 
       if (!candidates.length) return
@@ -147,12 +256,50 @@ function App(): React.JSX.Element {
     void window.api.requestBreak()
   }
 
+  const handleStartBlink = (): void => {
+    void window.api.requestBlink()
+  }
+
+  const handleStartHydration = (): void => {
+    void window.api.requestHydration()
+  }
+
+  const handleStartDrink = (): void => {
+    void window.api.requestDrink()
+  }
+
   const updateBlinkConfig = (patch: Partial<BlinkConfig>): void => {
     setBlinkConfig((prev) => {
       const next = { ...prev, ...patch }
       if (next.minMinutes > next.maxMinutes) next.maxMinutes = next.minMinutes
       return next
     })
+  }
+
+  const updateHydrationConfig = (patch: Partial<HydrationConfig>): void => {
+    setHydrationConfig((prev) => ({ ...prev, ...patch }))
+  }
+
+  const updateDrinkConfig = (patch: Partial<DrinkConfig>): void => {
+    setDrinkConfig((prev) => ({ ...prev, ...patch }))
+  }
+
+  const toggleAutoStart = (): void => {
+    const next = !autoStartEnabled
+    setAutoStartEnabled(next)
+    void window.api
+      .setAutoStart(next)
+      .then(setAutoStartEnabled)
+      .catch(() => setAutoStartEnabled(!next))
+  }
+
+  const toggleNotifications = (): void => {
+    const next = !notificationsEnabled
+    setNotificationsEnabled(next)
+    void window.api
+      .setNotificationsEnabled(next)
+      .then(setNotificationsEnabled)
+      .catch(() => setNotificationsEnabled(!next))
   }
 
   const panelClass =
@@ -207,7 +354,10 @@ function App(): React.JSX.Element {
       >
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
-            Arokiyam
+            Arokiyam ·{' '}
+            <span className="tracking-wider! text-orange-500!">
+              {healthStrictnessLabels[healthStrictness]}
+            </span>
           </p>
           <h1 className="text-3xl font-semibold leading-tight text-slate-900 dark:text-slate-100 md:text-4xl font-['Fraunces']">
             {greeting}, welcome back.
@@ -276,7 +426,7 @@ function App(): React.JSX.Element {
               </div>
               <div className={`${cardClass} p-5`}>
                 <p className="text-xs uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
-                  Computer on
+                  Computer on from
                 </p>
                 <p className="mt-3 text-2xl font-semibold text-slate-900 dark:text-slate-100">
                   {uptimeLabel}
@@ -297,7 +447,13 @@ function App(): React.JSX.Element {
                 </span>
               </div>
               <div className="mt-6">
-                <StressSection snapshot={stressSnapshot} onStartBreak={handleStartBreak} />
+                <StressSection
+                  snapshot={stressSnapshot}
+                  onStartBreak={handleStartBreak}
+                  onStartBlink={handleStartBlink}
+                  onStartHydration={handleStartHydration}
+                  onStartDrink={handleStartDrink}
+                />
               </div>
             </div>
           </section>
@@ -319,9 +475,13 @@ function App(): React.JSX.Element {
                 Helpful reminders for updates
               </p>
               <div className="mt-4 flex items-center gap-2">
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-                  Enabled
-                </span>
+                <button
+                  className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                  onClick={toggleNotifications}
+                  type="button"
+                >
+                  {notificationsEnabled ? 'Enabled' : 'Disabled'}
+                </button>
               </div>
             </div>
             <div className={`${cardClass} p-5`}>
@@ -330,9 +490,13 @@ function App(): React.JSX.Element {
                 Open Arokiyam at startup
               </p>
               <div className="mt-4 flex items-center gap-2">
-                <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
-                  On
-                </span>
+                <button
+                  className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                  onClick={toggleAutoStart}
+                  type="button"
+                >
+                  {autoStartEnabled ? 'On' : 'Off'}
+                </button>
               </div>
             </div>
             <div className={`${cardClass} p-5`}>
@@ -346,6 +510,37 @@ function App(): React.JSX.Element {
                 <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
                   10:00 PM - 7:00 AM
                 </span>
+              </div>
+            </div>
+            <div className={`${cardClass} p-5`}>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Health strictness
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Control how strict activity screens should be.
+              </p>
+              <div className="mt-4">
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Choose level
+                  <select
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    value={healthStrictness}
+                    onChange={(event) =>
+                      setHealthStrictness(event.target.value as HealthStrictness)
+                    }
+                  >
+                    <option value="basic">{healthStrictnessLabels.basic}</option>
+                    <option value="medium">{healthStrictnessLabels.medium}</option>
+                    <option value="strict">{healthStrictnessLabels.strict}</option>
+                  </select>
+                </label>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  {healthStrictness === 'basic' && 'Skip or snooze anytime during an activity.'}
+                  {healthStrictness === 'medium' &&
+                    'Skip or snooze after 10 seconds of the activity.'}
+                  {healthStrictness === 'strict' &&
+                    'No skipping. Finish the activity or wait for it to end.'}
+                </p>
               </div>
             </div>
             <div className={`${cardClass} p-5 md:col-span-2`}>
@@ -416,6 +611,126 @@ function App(): React.JSX.Element {
                     value={blinkConfig.snoozeMinutes}
                     onChange={(event) =>
                       updateBlinkConfig({ snoozeMinutes: Number(event.target.value) })
+                    }
+                  />
+                </label>
+              </div>
+            </div>
+            <div className={`${cardClass} p-5 md:col-span-2`}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    Hydration lock
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Periodic water reminders with a short focus lock.
+                  </p>
+                </div>
+                <button
+                  className="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                  onClick={() => updateHydrationConfig({ enabled: !hydrationConfig.enabled })}
+                  type="button"
+                >
+                  {hydrationConfig.enabled ? 'Enabled' : 'Disabled'}
+                </button>
+              </div>
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Interval (min)
+                  <input
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    type="number"
+                    min={15}
+                    max={180}
+                    value={hydrationConfig.intervalMinutes}
+                    onChange={(event) =>
+                      updateHydrationConfig({ intervalMinutes: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Duration (sec)
+                  <input
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    type="number"
+                    min={10}
+                    max={120}
+                    value={hydrationConfig.durationSeconds}
+                    onChange={(event) =>
+                      updateHydrationConfig({ durationSeconds: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Snooze (min)
+                  <input
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    type="number"
+                    min={5}
+                    max={60}
+                    value={hydrationConfig.snoozeMinutes}
+                    onChange={(event) =>
+                      updateHydrationConfig({ snoozeMinutes: Number(event.target.value) })
+                    }
+                  />
+                </label>
+              </div>
+            </div>
+            <div className={`${cardClass} p-5 md:col-span-2`}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    Focus drink
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Coffee, tea, or juice to stay sharp and focused.
+                  </p>
+                </div>
+                <button
+                  className="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                  onClick={() => updateDrinkConfig({ enabled: !drinkConfig.enabled })}
+                  type="button"
+                >
+                  {drinkConfig.enabled ? 'Enabled' : 'Disabled'}
+                </button>
+              </div>
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Interval (min)
+                  <input
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    type="number"
+                    min={60}
+                    max={240}
+                    value={drinkConfig.intervalMinutes}
+                    onChange={(event) =>
+                      updateDrinkConfig({ intervalMinutes: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Duration (sec)
+                  <input
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    type="number"
+                    min={15}
+                    max={180}
+                    value={drinkConfig.durationSeconds}
+                    onChange={(event) =>
+                      updateDrinkConfig({ durationSeconds: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Snooze (min)
+                  <input
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    type="number"
+                    min={10}
+                    max={120}
+                    value={drinkConfig.snoozeMinutes}
+                    onChange={(event) =>
+                      updateDrinkConfig({ snoozeMinutes: Number(event.target.value) })
                     }
                   />
                 </label>

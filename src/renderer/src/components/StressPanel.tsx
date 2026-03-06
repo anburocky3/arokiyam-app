@@ -6,9 +6,18 @@ import { StressStats } from './StressStats'
 type StressPanelProps = {
   snapshot: StressSnapshot
   onStartBreak: () => void
+  onStartBlink: () => void
+  onStartHydration: () => void
+  onStartDrink: () => void
 }
 
-export const StressPanel = ({ snapshot, onStartBreak }: StressPanelProps): React.JSX.Element => {
+export const StressPanel = ({
+  snapshot,
+  onStartBreak,
+  onStartBlink,
+  onStartHydration,
+  onStartDrink
+}: StressPanelProps): React.JSX.Element => {
   return (
     <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
       <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-5 shadow-sm backdrop-blur-2xl dark:border-slate-700/60 dark:bg-slate-900/70">
@@ -22,7 +31,13 @@ export const StressPanel = ({ snapshot, onStartBreak }: StressPanelProps): React
         />
       </div>
       <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-5 shadow-sm backdrop-blur-2xl dark:border-slate-700/60 dark:bg-slate-900/70 lg:col-span-2">
-        <StressStats snapshot={snapshot} />
+        <StressStats
+          snapshot={snapshot}
+          onStartBreak={onStartBreak}
+          onStartBlink={onStartBlink}
+          onStartHydration={onStartHydration}
+          onStartDrink={onStartDrink}
+        />
       </div>
     </div>
   )

@@ -40,6 +40,64 @@
   }
 }
 
+@keyframes water-rise {
+  0%,
+  100% {
+    transform: translateY(6%);
+  }
+  50% {
+    transform: translateY(0%);
+  }
+}
+
+@keyframes water-wave {
+  0%,
+  100% {
+    transform: translateY(0%) scaleX(1);
+  }
+  50% {
+    transform: translateY(-6%) scaleX(1.05);
+  }
+}
+
+@keyframes bubble-float {
+  0% {
+    transform: translateY(0%);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-140%);
+    opacity: 0;
+  }
+}
+
+@keyframes steam-rise {
+  0% {
+    transform: translateY(0%) scale(1);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(-120%) scale(1.2);
+    opacity: 0;
+  }
+}
+
+@keyframes cup-wave {
+  0%,
+  100% {
+    transform: translateY(0%) scaleX(1);
+  }
+  50% {
+    transform: translateY(-6%) scaleX(1.05);
+  }
+}
+
 @layer utilities {
   .animate-breath {
     animation: breath 12s ease-in-out infinite;
@@ -52,5 +110,25 @@
 
   .animate-eye-glow {
     animation: eye-glow 6s linear infinite;
+  }
+
+  .animate-water-rise {
+    animation: water-rise 6s ease-in-out infinite;
+  }
+
+  .animate-water-wave {
+    animation: water-wave 4s ease-in-out infinite;
+  }
+
+  .animate-bubble {
+    animation: bubble-float 3.8s ease-in-out infinite;
+  }
+
+  .animate-steam {
+    animation: steam-rise 3.5s ease-in-out infinite;
+  }
+
+  .animate-cup-wave {
+    animation: cup-wave 4.2s ease-in-out infinite;
   }
 }
