@@ -49,24 +49,24 @@ const computeNextBreakMs = (stressLevel: number): number => {
 
 const defaultBlinkConfig: BlinkConfig = {
   enabled: true,
-  minMinutes: 8,
-  maxMinutes: 18,
-  durationSeconds: 6,
-  snoozeMinutes: 3
+  minMinutes: 15,
+  maxMinutes: 22,
+  durationSeconds: 8,
+  snoozeMinutes: 5
 }
 
 const defaultHydrationConfig: HydrationConfig = {
   enabled: true,
-  intervalMinutes: 45,
-  durationSeconds: 25,
-  snoozeMinutes: 10
+  intervalMinutes: 60,
+  durationSeconds: 30,
+  snoozeMinutes: 15
 }
 
 const defaultDrinkConfig: DrinkConfig = {
   enabled: true,
-  intervalMinutes: 120,
+  intervalMinutes: 180,
   durationSeconds: 30,
-  snoozeMinutes: 20
+  snoozeMinutes: 30
 }
 
 const clampConfig = (config: BlinkConfig): BlinkConfig => {
@@ -126,7 +126,12 @@ export const createStressMonitor = (): StressMonitor => {
   let isBreakActive = false
   let lastStressLevel = 0
   let blinkConfig = defaultBlinkConfig
-  let nextBlinkAt = Date.now() + randomInRange(8 * 60 * 1000, 18 * 60 * 1000)
+  let nextBlinkAt =
+    Date.now() +
+    randomInRange(
+      defaultBlinkConfig.minMinutes * 60 * 1000,
+      defaultBlinkConfig.maxMinutes * 60 * 1000
+    )
   let blinkEndsAt: number | null = null
   let isBlinkActive = false
   let hydrationConfig = defaultHydrationConfig

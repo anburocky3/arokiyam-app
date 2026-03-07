@@ -30,24 +30,24 @@ type HealthStrictness = 'basic' | 'medium' | 'strict'
 
 const defaultBlinkConfig: BlinkConfig = {
   enabled: true,
-  minMinutes: 8,
-  maxMinutes: 18,
-  durationSeconds: 6,
-  snoozeMinutes: 3
+  minMinutes: 15,
+  maxMinutes: 22,
+  durationSeconds: 8,
+  snoozeMinutes: 5
 }
 
 const defaultHydrationConfig: HydrationConfig = {
   enabled: true,
-  intervalMinutes: 45,
-  durationSeconds: 25,
-  snoozeMinutes: 10
+  intervalMinutes: 60,
+  durationSeconds: 30,
+  snoozeMinutes: 15
 }
 
 const defaultDrinkConfig: DrinkConfig = {
   enabled: true,
-  intervalMinutes: 120,
+  intervalMinutes: 180,
   durationSeconds: 30,
-  snoozeMinutes: 20
+  snoozeMinutes: 30
 }
 
 const defaultHealthStrictness: HealthStrictness = 'basic'
@@ -553,7 +553,7 @@ function App(): React.JSX.Element {
                     Blink overlay
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    A gentle black screen reminder with skip or snooze.
+                    A gentle black screen reminder. Recommended: every 15-22 minutes.
                   </p>
                 </div>
                 <button
@@ -626,7 +626,7 @@ function App(): React.JSX.Element {
                     Hydration lock
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Periodic water reminders with a short focus lock.
+                    Periodic water reminders. Recommended: every 60 minutes.
                   </p>
                 </div>
                 <button
@@ -686,7 +686,7 @@ function App(): React.JSX.Element {
                     Focus drink
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Coffee, tea, or juice to stay sharp and focused.
+                    Coffee, tea, or juice reminders. Recommended: every 180 minutes.
                   </p>
                 </div>
                 <button
