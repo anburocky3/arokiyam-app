@@ -1,5 +1,8 @@
 appId: cdn.arokiyam
 productName: Arokiyam
+electronLanguages:
+  - en-US
+afterPack: build/afterPack.mjs
 directories:
   buildResources: build
 files:
