@@ -1,7 +1,6 @@
-<div style="display:flex;align-items:center;">
-<h1>Arokiyam</h1>
-<h4 style="padding-left:20px;">Health companion app for techies</h4>
-</div>
+# Arokiyam
+
+Health companion app for techies
 
 [![Stars](https://img.shields.io/github/stars/anburocky3/arokiyam-app)](https://github.com/anburocky3/arokiyam-app)
 [![Forks](https://img.shields.io/github/forks/anburocky3/arokiyam-app)](https://github.com/anburocky3/arokiyam-app)
@@ -9,6 +8,8 @@
 ![Anbuselvan Rocky Twitter](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Fgithub.com%2Fanburocky3%2Farokiyam-app)
 [![Support Server](https://img.shields.io/discord/742347296091537448.svg?label=Discord&logo=Discord&colorB=7289da)](https://discord.gg/6ktMR65YMy)
 [![Cyberdude youtube](https://img.shields.io/youtube/channel/subscribers/UCteUj8bL1ppZcS70UCWrVfw?style=social)](https://www.youtube.com/c/cyberdudenetworks)
+
+![Arokiyam banner](docs/screenshots/banner.png)
 
 Arokiyam is a cross-platform desktop wellness companion for developers and desk workers.
 It tracks activity stress signals, prompts healthy breaks, and uses guided overlays to reduce eye strain and fatigue.
@@ -28,15 +29,27 @@ Latest stable release: **v1.0.2**
 
 ## Screenshots
 
-### Dashboard
+#### 1.1 Arokiyam App Dashboard
 
 ![Arokiyam Dashboard](docs/screenshots/1.png)
+
+#### 1.2 Activity #1: Rest your eyes
+
 ![Activity #1: Rest your eyes](docs/screenshots/2.png)
+
+#### 1.3 Activity #2: Reset your Energy
+
 ![Activity #2: Reset your energy](docs/screenshots/3.png)
+
+#### 1.4 Activity #3: Hydration
+
 ![Activity #3: Hydration](docs/screenshots/4.png)
+
+#### 1.5 Activity #4: Drink juice/coffee
+
 ![Activity #4: Drink juice/coffee](docs/screenshots/5.png)
 
-### Preferences
+#### Arokiyam preferences
 
 ![Arokiyam Preferences](docs/screenshots/6.png)
 
@@ -168,6 +181,8 @@ When opening an issue, include:
 - Actual behavior
 - Screenshots or logs (if relevant)
 
-## License
+## License: [MIT](./LICENSE)
 
-Add your preferred license in `LICENSE` and update this section.
+## Authors:
+
+1. [Mr. Anbuselvan Annamalai](https://anbuselvan-annamalai.com)
