@@ -13,7 +13,6 @@ import os from 'os'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
 import { createStressMonitor } from './stressMonitor'
 import type {
   BlinkConfig,
@@ -120,35 +119,52 @@ const loadRenderer = (window: BrowserWindow, html: string): void => {
   }
 }
 
-const getTrayIconPath = (): string => {
+const getIconPath = (filename: string): string => {
   if (app.isPackaged) {
-    return join(process.resourcesPath, 'resources', 'icon.png')
+    return join(process.resourcesPath, 'icons', filename)
   }
-  return join(app.getAppPath(), 'resources', 'icon.png')
+  return join(app.getAppPath(), 'build', 'icons', filename)
 }
+
+const getTrayIconPath = (): string => getIconPath('32x32.png')
+
+const getWindowIconPath = (): string =>
+  process.platform === 'win32' ? getIconPath('icon.ico') : getIconPath('256x256.png')
 
 const showMainWindow = (): void => {
   if (!mainWindow) return
+  mainWindow.setSkipTaskbar(false)
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore()
+  }
   mainWindow.show()
   mainWindow.focus()
+}
+
+const hideMainWindowToTray = (): void => {
+  if (!mainWindow) return
+  mainWindow.hide()
+  mainWindow.setSkipTaskbar(true)
 }
 
 const createTray = (): void => {
   if (tray) return
   const iconPath = getTrayIconPath()
   const iconImage = nativeImage.createFromPath(iconPath)
-  tray = new Tray(iconImage)
+  const trayIcon = iconImage.isEmpty() ? nativeImage.createFromPath(getWindowIconPath()) : iconImage
+  tray = new Tray(trayIcon)
   tray.setToolTip('Arokiyam')
 
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show Arokiyam', click: () => showMainWindow() },
-    { label: 'Hide', click: () => mainWindow?.hide() },
+    { label: 'Hide', click: () => hideMainWindowToTray() },
     { type: 'separator' },
     {
       label: 'Quit',
       click: () => {
-        mainWindow?.destroy()
-        // isQuitting = true
+        isQuitting = true
+        overlayWindow?.destroy()
+        mainWindow?.close()
         app.quit()
       }
     }
@@ -189,7 +205,7 @@ function createWindow(): void {
     transparent: false,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon: getWindowIconPath(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -198,14 +214,20 @@ function createWindow(): void {
 
   if (mainWindow) {
     mainWindow.on('ready-to-show', () => {
+      mainWindow?.setSkipTaskbar(false)
       mainWindow?.show()
+    })
+
+    mainWindow.on('minimize' as 'close', (event) => {
+      if (isQuitting) return
+      event.preventDefault()
+      hideMainWindowToTray()
     })
 
     mainWindow.on('close', (event) => {
       if (isQuitting) return
       event.preventDefault()
-      mainWindow?.minimize()
-      mainWindow?.setSkipTaskbar(false)
+      hideMainWindowToTray()
     })
 
     mainWindow.on('closed', () => {
