@@ -1,7 +1,7 @@
 {
   "name": "arokiyam",
   "productName": "Arokiyam",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Arokiyam is a desktop application designed to help users track their health and wellness. It provides features such as medication reminders, symptom tracking, and health data visualization to assist users in managing their health effectively.",
   "main": "./out/main/index.js",
   "author": "Anbuselvan Annamalai",
@@ -24,9 +24,10 @@
     "publish:win": "bun run build && electron-builder --win --publish always",
     "publish:mac": "bun run build && electron-builder --mac --publish always",
     "publish:linux": "bun run build && electron-builder --linux AppImage deb --publish always",
-    "release:patch": "npm version patch -m \"v%s\" && git push && git push --tags",
-    "release:minor": "npm version minor -m \"v%s\" && git push && git push --tags",
-    "release:major": "npm version major -m \"v%s\" && git push && git push --tags"
+    "release": "bun scripts/release.ts",
+    "release:patch": "bun scripts/release.ts patch",
+    "release:minor": "bun scripts/release.ts minor",
+    "release:major": "bun scripts/release.ts major"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

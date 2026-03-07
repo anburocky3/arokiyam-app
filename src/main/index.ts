@@ -30,6 +30,30 @@ let stressMonitor: ReturnType<typeof createStressMonitor> | null = null
 let tray: Tray | null = null
 let isQuitting = false
 
+const getAutoStartStatus = (): boolean => {
+  if (!app.isPackaged) return false
+  return app.getLoginItemSettings().openAtLogin
+}
+
+const setAutoStartStatus = (enabled: boolean): boolean => {
+  if (!app.isPackaged) {
+    // Prevent bad startup entries that can launch raw Electron in dev mode.
+    app.setLoginItemSettings({ openAtLogin: false })
+    return false
+  }
+
+  if (process.platform === 'win32') {
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      path: process.execPath
+    })
+  } else {
+    app.setLoginItemSettings({ openAtLogin: enabled })
+  }
+
+  return app.getLoginItemSettings().openAtLogin
+}
+
 type AppPreferences = {
   notificationsEnabled: boolean
 }
@@ -239,6 +263,11 @@ function createOverlayWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Ensure dev runs never register invalid startup entries.
+  if (!app.isPackaged && app.getLoginItemSettings().openAtLogin) {
+    app.setLoginItemSettings({ openAtLogin: false })
+  }
+
   app.setName('Arokiyam')
   let appPreferences = readPreferences()
 
@@ -334,13 +363,8 @@ app.whenReady().then(() => {
   ipcMain.handle('drink:complete', () => stressMonitor?.completeDrink())
   ipcMain.handle('drink:snooze', () => stressMonitor?.snoozeDrink())
 
-  ipcMain.handle('settings:getAutoStart', () => {
-    return app.getLoginItemSettings().openAtLogin
-  })
-  ipcMain.handle('settings:setAutoStart', (_event, enabled: boolean) => {
-    app.setLoginItemSettings({ openAtLogin: enabled })
-    return app.getLoginItemSettings().openAtLogin
-  })
+  ipcMain.handle('settings:getAutoStart', () => getAutoStartStatus())
+  ipcMain.handle('settings:setAutoStart', (_event, enabled: boolean) => setAutoStartStatus(enabled))
   ipcMain.handle('settings:getNotificationsEnabled', () => appPreferences.notificationsEnabled)
   ipcMain.handle('settings:setNotificationsEnabled', (_event, enabled: boolean) => {
     appPreferences = { ...appPreferences, notificationsEnabled: enabled }

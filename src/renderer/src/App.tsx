@@ -498,6 +498,9 @@ function App(): React.JSX.Element {
                   {autoStartEnabled ? 'On' : 'Off'}
                 </button>
               </div>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Works after installing Arokiyam from setup. Portable/dev mode cannot auto start.
+              </p>
             </div>
             <div className={`${cardClass} p-5`}>
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
