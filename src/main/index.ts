@@ -78,11 +78,24 @@ const setAutoStartStatus = (enabled: boolean): boolean => {
 type AppPreferences = {
   notificationsEnabled: boolean
   quietHoursEnabled: boolean
+  displayName: string
+}
+
+const getDefaultDisplayName = (): string => {
+  try {
+    const raw = os.userInfo().username
+    const cleaned = raw.replace(/[._-]+/g, ' ').trim()
+    if (!cleaned) return 'Friend'
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+  } catch {
+    return 'Friend'
+  }
 }
 
 const defaultAppPreferences: AppPreferences = {
   notificationsEnabled: true,
-  quietHoursEnabled: true
+  quietHoursEnabled: true,
+  displayName: getDefaultDisplayName()
 }
 
 const preferencesPath = join(app.getPath('userData'), 'preferences.json')
@@ -117,6 +130,12 @@ const isInQuietHours = (date = new Date()): boolean => {
 
 const shouldShowNotification = (preferences: AppPreferences): boolean => {
   if (!Notification.isSupported()) return false
+  if (!preferences.notificationsEnabled) return false
+  if (preferences.quietHoursEnabled && isInQuietHours()) return false
+  return true
+}
+
+const shouldShowReminder = (preferences: AppPreferences): boolean => {
   if (!preferences.notificationsEnabled) return false
   if (preferences.quietHoursEnabled && isInQuietHours()) return false
   return true
@@ -344,6 +363,10 @@ app.whenReady().then(() => {
     }
   }
   let appPreferences = readPreferences()
+  if (!appPreferences.displayName || !appPreferences.displayName.trim()) {
+    appPreferences = { ...appPreferences, displayName: getDefaultDisplayName() }
+    writePreferences(appPreferences)
+  }
 
   if (shouldShowNotification(appPreferences)) {
     const readyNotice = new Notification({
@@ -411,6 +434,7 @@ app.whenReady().then(() => {
   })
 
   stressMonitor.onOverlayToast((toast: OverlayToast) => {
+    if (!shouldShowReminder(appPreferences)) return
     broadcast('overlay:toast', toast)
   })
 
@@ -457,6 +481,16 @@ app.whenReady().then(() => {
     appPreferences = { ...appPreferences, quietHoursEnabled: enabled }
     writePreferences(appPreferences)
     return appPreferences.quietHoursEnabled
+  })
+  ipcMain.handle('settings:getDisplayName', () => appPreferences.displayName)
+  ipcMain.handle('settings:setDisplayName', (_event, name: string) => {
+    const normalized = (name ?? '').trim()
+    appPreferences = {
+      ...appPreferences,
+      displayName: normalized.length ? normalized : getDefaultDisplayName()
+    }
+    writePreferences(appPreferences)
+    return appPreferences.displayName
   })
 
   createWindow()

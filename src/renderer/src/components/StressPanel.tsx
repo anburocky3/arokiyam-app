@@ -9,6 +9,9 @@ type StressPanelProps = {
   onStartBlink: () => void
   onStartHydration: () => void
   onStartDrink: () => void
+  blinkEnabled: boolean
+  hydrationEnabled: boolean
+  drinkEnabled: boolean
 }
 
 export const StressPanel = ({
@@ -16,7 +19,10 @@ export const StressPanel = ({
   onStartBreak,
   onStartBlink,
   onStartHydration,
-  onStartDrink
+  onStartDrink,
+  blinkEnabled,
+  hydrationEnabled,
+  drinkEnabled
 }: StressPanelProps): React.JSX.Element => {
   return (
     <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -37,6 +43,9 @@ export const StressPanel = ({
           onStartBlink={onStartBlink}
           onStartHydration={onStartHydration}
           onStartDrink={onStartDrink}
+          blinkEnabled={blinkEnabled}
+          hydrationEnabled={hydrationEnabled}
+          drinkEnabled={drinkEnabled}
         />
       </div>
     </div>

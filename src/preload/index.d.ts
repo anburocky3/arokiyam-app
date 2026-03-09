@@ -27,6 +27,8 @@ declare global {
       setNotificationsEnabled: (enabled: boolean) => Promise<boolean>
       getQuietHoursEnabled: () => Promise<boolean>
       setQuietHoursEnabled: (enabled: boolean) => Promise<boolean>
+      getDisplayName: () => Promise<string>
+      setDisplayName: (name: string) => Promise<string>
       getStressSnapshot: () => Promise<StressSnapshot>
       requestBreak: () => Promise<void>
       skipBreak: () => Promise<void>

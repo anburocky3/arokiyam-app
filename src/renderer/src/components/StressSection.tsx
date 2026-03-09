@@ -10,6 +10,9 @@ type StressSectionProps = {
   onStartBlink: () => void
   onStartHydration: () => void
   onStartDrink: () => void
+  blinkEnabled: boolean
+  hydrationEnabled: boolean
+  drinkEnabled: boolean
 }
 
 export const StressSection = ({
@@ -17,7 +20,10 @@ export const StressSection = ({
   onStartBreak,
   onStartBlink,
   onStartHydration,
-  onStartDrink
+  onStartDrink,
+  blinkEnabled,
+  hydrationEnabled,
+  drinkEnabled
 }: StressSectionProps): React.JSX.Element => {
   if (snapshot === null) return <StressPanelError />
   if (!snapshot) return <StressPanelSkeleton />
@@ -30,6 +36,9 @@ export const StressSection = ({
         onStartBlink={onStartBlink}
         onStartHydration={onStartHydration}
         onStartDrink={onStartDrink}
+        blinkEnabled={blinkEnabled}
+        hydrationEnabled={hydrationEnabled}
+        drinkEnabled={drinkEnabled}
       />
       <OverlayStatus snapshot={snapshot} />
     </div>

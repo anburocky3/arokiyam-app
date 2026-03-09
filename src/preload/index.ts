@@ -22,6 +22,8 @@ const api = {
   getQuietHoursEnabled: () => ipcRenderer.invoke('settings:getQuietHoursEnabled') as Promise<boolean>,
   setQuietHoursEnabled: (enabled: boolean) =>
     ipcRenderer.invoke('settings:setQuietHoursEnabled', enabled) as Promise<boolean>,
+  getDisplayName: () => ipcRenderer.invoke('settings:getDisplayName') as Promise<string>,
+  setDisplayName: (name: string) => ipcRenderer.invoke('settings:setDisplayName', name) as Promise<string>,
   getStressSnapshot: () => ipcRenderer.invoke('stress:getSnapshot') as Promise<StressSnapshot>,
   requestBreak: () => ipcRenderer.invoke('break:request') as Promise<void>,
   skipBreak: () => ipcRenderer.invoke('break:skip') as Promise<void>,

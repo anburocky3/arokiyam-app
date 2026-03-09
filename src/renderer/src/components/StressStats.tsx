@@ -7,6 +7,9 @@ type StressStatsProps = {
   onStartBlink: () => void
   onStartHydration: () => void
   onStartDrink: () => void
+  blinkEnabled: boolean
+  hydrationEnabled: boolean
+  drinkEnabled: boolean
 }
 
 const formatNumber = (value: number): string => Intl.NumberFormat().format(Math.round(value))
@@ -47,35 +50,47 @@ export const StressStats = ({
   onStartBreak,
   onStartBlink,
   onStartHydration,
-  onStartDrink
+  onStartDrink,
+  blinkEnabled,
+  hydrationEnabled,
+  drinkEnabled
 }: StressStatsProps): React.JSX.Element => {
   const [, setTick] = useState(0)
-  const primaryActivity = snapshot.isBlinkActive
-    ? { label: 'Blink ends in', time: snapshot.blinkEndsAt }
-    : { label: 'Next blink', time: snapshot.nextBlinkAt }
+  const primaryActivity = !blinkEnabled
+    ? { label: 'Blink disabled', time: null }
+    : snapshot.isBlinkActive
+      ? { label: 'Blink ends in', time: snapshot.blinkEndsAt }
+      : { label: 'Next blink', time: snapshot.nextBlinkAt }
   const secondaryActivity = snapshot.isBreakActive
     ? { label: 'Break ends in', time: snapshot.breakEndsAt }
     : { label: 'Next break', time: snapshot.nextBreakAt }
-  const hydrationActivity = snapshot.isHydrationActive
-    ? { label: 'Hydration ends in', time: snapshot.hydrationEndsAt }
-    : { label: 'Next hydration', time: snapshot.nextHydrationAt }
-  const drinkActivity = snapshot.isDrinkActive
-    ? { label: 'Drink ends in', time: snapshot.drinkEndsAt }
-    : { label: 'Next drink', time: snapshot.nextDrinkAt }
+  const hydrationActivity = !hydrationEnabled
+    ? { label: 'Hydration disabled', time: null }
+    : snapshot.isHydrationActive
+      ? { label: 'Hydration ends in', time: snapshot.hydrationEndsAt }
+      : { label: 'Next hydration', time: snapshot.nextHydrationAt }
+  const drinkActivity = !drinkEnabled
+    ? { label: 'Drink disabled', time: null }
+    : snapshot.isDrinkActive
+      ? { label: 'Drink ends in', time: snapshot.drinkEndsAt }
+      : { label: 'Next drink', time: snapshot.nextDrinkAt }
   const scrollMinutes = Math.floor(snapshot.scrollingStreakMs / 60000)
 
   const canStartBreak = !snapshot.isBreakActive
   const canStartBlink =
+    blinkEnabled &&
     !snapshot.isBreakActive &&
     !snapshot.isBlinkActive &&
     !snapshot.isHydrationActive &&
     !snapshot.isDrinkActive
   const canStartHydration =
+    hydrationEnabled &&
     !snapshot.isBreakActive &&
     !snapshot.isBlinkActive &&
     !snapshot.isHydrationActive &&
     !snapshot.isDrinkActive
   const canStartDrink =
+    drinkEnabled &&
     !snapshot.isBreakActive &&
     !snapshot.isBlinkActive &&
     !snapshot.isHydrationActive &&
@@ -122,29 +137,6 @@ export const StressStats = ({
           Next activity
         </p>
         <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-indigo-200/70 bg-linear-to-br from-indigo-100 to-sky-100 p-4 dark:border-indigo-500/30 dark:from-indigo-500/25 dark:to-sky-500/20">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700 dark:text-indigo-200">
-                {primaryActivity.label}
-              </p>
-              <button
-                className={`${actionButtonBase} px-2 py-1 text-[11px] ${
-                  canStartBlink ? actionButtonEnabled : actionButtonDisabled
-                }`}
-                onClick={onStartBlink}
-                disabled={!canStartBlink}
-                type="button"
-              >
-                Blink now
-              </button>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-indigo-900 dark:text-white">
-              {getActivityTime(primaryActivity.time)}
-            </p>
-            <p className="mt-1 text-xs font-semibold text-indigo-700/80 dark:text-indigo-200/90">
-              in {getActivityHumanTime(primaryActivity.time)}
-            </p>
-          </div>
           <div className="rounded-2xl border border-rose-200/70 bg-linear-to-br from-rose-100 to-orange-100 p-4 dark:border-rose-500/30 dark:from-rose-500/20 dark:to-orange-500/20">
             <div className="flex items-start justify-between gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-rose-700 dark:text-rose-200">
@@ -168,6 +160,31 @@ export const StressStats = ({
               in {getActivityHumanTime(secondaryActivity.time)}
             </p>
           </div>
+          <div className="rounded-2xl border border-indigo-200/70 bg-linear-to-br from-indigo-100 to-sky-100 p-4 dark:border-indigo-500/30 dark:from-indigo-500/25 dark:to-sky-500/20">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700 dark:text-indigo-200">
+                {primaryActivity.label}
+              </p>
+              <button
+                className={`${actionButtonBase} px-2 py-1 text-[11px] ${
+                  canStartBlink ? actionButtonEnabled : actionButtonDisabled
+                }`}
+                onClick={onStartBlink}
+                disabled={!canStartBlink}
+                type="button"
+              >
+                {blinkEnabled ? 'Blink now' : 'Disabled'}
+              </button>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-indigo-900 dark:text-white">
+              {getActivityTime(primaryActivity.time)}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-indigo-700/80 dark:text-indigo-200/90">
+              {blinkEnabled
+                ? `in ${getActivityHumanTime(primaryActivity.time)}`
+                : 'Enable in Preferences'}
+            </p>
+          </div>
           <div className="rounded-2xl border border-cyan-200/70 bg-linear-to-br from-cyan-100 to-teal-100 p-4 dark:border-cyan-500/30 dark:from-cyan-500/20 dark:to-emerald-500/20">
             <div className="flex items-start justify-between gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-200">
@@ -181,14 +198,16 @@ export const StressStats = ({
                 disabled={!canStartHydration}
                 type="button"
               >
-                Hydrate now
+                {hydrationEnabled ? 'Hydrate now' : 'Disabled'}
               </button>
             </div>
             <p className="mt-2 text-2xl font-bold text-cyan-900 dark:text-white">
               {getActivityTime(hydrationActivity.time)}
             </p>
             <p className="mt-1 text-xs font-semibold text-cyan-700/80 dark:text-cyan-200/90">
-              in {getActivityHumanTime(hydrationActivity.time)}
+              {hydrationEnabled
+                ? `in ${getActivityHumanTime(hydrationActivity.time)}`
+                : 'Enable in Preferences'}
             </p>
           </div>
           <div className="rounded-2xl border border-amber-200/70 bg-linear-to-br from-amber-100 to-lime-100 p-4 dark:border-amber-500/30 dark:from-amber-500/20 dark:to-lime-500/20">
@@ -204,14 +223,16 @@ export const StressStats = ({
                 disabled={!canStartDrink}
                 type="button"
               >
-                Drink now
+                {drinkEnabled ? 'Drink now' : 'Disabled'}
               </button>
             </div>
             <p className="mt-2 text-2xl font-bold text-amber-900 dark:text-white">
               {getActivityTime(drinkActivity.time)}
             </p>
             <p className="mt-1 text-xs font-semibold text-amber-700/80 dark:text-amber-200/90">
-              in {getActivityHumanTime(drinkActivity.time)}
+              {drinkEnabled
+                ? `in ${getActivityHumanTime(drinkActivity.time)}`
+                : 'Enable in Preferences'}
             </p>
           </div>
         </div>

@@ -58,6 +58,14 @@ const healthStrictnessLabels: Record<HealthStrictness, string> = {
   strict: 'Health conscious'
 }
 
+const motivationalQuotes: Array<{ quote: string; author: string }> = [
+  { quote: 'Small healthy breaks create big productive days.', author: 'Arokiyam' },
+  { quote: 'Take care of your body; your code depends on it.', author: 'Unknown' },
+  { quote: 'Focus is a rhythm, not a sprint.', author: 'Arokiyam' },
+  { quote: 'Consistency beats intensity for long-term wellness.', author: 'Arokiyam' },
+  { quote: 'Hydrate, breathe, blink, then build.', author: 'Arokiyam' }
+]
+
 const getStoredBlinkConfig = (): BlinkConfig => {
   const stored = window.localStorage.getItem('arokiyam-blink-config')
   if (!stored) return defaultBlinkConfig
@@ -112,6 +120,7 @@ function App(): React.JSX.Element {
   const [autoStartEnabled, setAutoStartEnabled] = useState(true)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(true)
+  const [displayName, setDisplayName] = useState('')
   const shouldTrackUptime = uptimeSeconds !== null
   const stressSnapshot = useStressMonitor()
   const [activityToast, setActivityToast] = useState<{ message: string; expiresAt: number } | null>(
@@ -170,6 +179,17 @@ function App(): React.JSX.Element {
         setQuietHoursEnabled(true)
       })
 
+    void window.api
+      .getDisplayName()
+      .then((name) => {
+        if (!isMounted) return
+        setDisplayName(name)
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setDisplayName('')
+      })
+
     return () => {
       isMounted = false
     }
@@ -221,19 +241,27 @@ function App(): React.JSX.Element {
       const snapshot = snapshotRef.current
       if (!snapshot) return
 
+      const currentHour = new Date().getHours()
+      const inQuietHours = currentHour >= 22 || currentHour < 7
+      const remindersBlocked = !notificationsEnabled || (quietHoursEnabled && inQuietHours)
+      if (remindersBlocked) {
+        if (activityToast) setActivityToast(null)
+        return
+      }
+
       const now = Date.now()
       const candidates: Array<{ label: string; time: number }> = []
 
-      if (!snapshot.isBlinkActive) {
+      if (blinkConfig.enabled && !snapshot.isBlinkActive) {
         candidates.push({ label: 'Blink', time: snapshot.nextBlinkAt })
       }
       if (!snapshot.isBreakActive) {
         candidates.push({ label: 'Break', time: snapshot.nextBreakAt })
       }
-      if (!snapshot.isHydrationActive) {
+      if (hydrationConfig.enabled && !snapshot.isHydrationActive) {
         candidates.push({ label: 'Hydration', time: snapshot.nextHydrationAt })
       }
-      if (!snapshot.isDrinkActive) {
+      if (drinkConfig.enabled && !snapshot.isDrinkActive) {
         candidates.push({ label: 'Drink', time: snapshot.nextDrinkAt })
       }
 
@@ -257,9 +285,22 @@ function App(): React.JSX.Element {
     }, 1000)
 
     return () => clearInterval(id)
-  }, [activityToast])
+  }, [
+    activityToast,
+    notificationsEnabled,
+    quietHoursEnabled,
+    blinkConfig.enabled,
+    hydrationConfig.enabled,
+    drinkConfig.enabled
+  ])
 
   const greeting = getGreeting(currentTime)
+  const displayGreetingName = displayName.trim() || 'there'
+  const quoteIndex =
+    (currentTime.getDate() + currentTime.getMonth() * 31 + currentTime.getFullYear()) %
+    motivationalQuotes.length
+  const todaysQuote = motivationalQuotes[quoteIndex]
+  const needsMachineRest = (uptimeSeconds ?? 0) >= 10 * 60 * 60
 
   const uptimeLabel = uptimeSeconds === null ? '--' : formatUptime(uptimeSeconds)
   const bootedAt =
@@ -324,9 +365,32 @@ function App(): React.JSX.Element {
       .catch(() => setQuietHoursEnabled(!next))
   }
 
+  const toggleBlinkEnabled = (): void => {
+    updateBlinkConfig({ enabled: !blinkConfig.enabled })
+  }
+
+  const toggleHydrationEnabled = (): void => {
+    updateHydrationConfig({ enabled: !hydrationConfig.enabled })
+  }
+
+  const toggleDrinkEnabled = (): void => {
+    updateDrinkConfig({ enabled: !drinkConfig.enabled })
+  }
+
   const isInQuietHours = (date = new Date()): boolean => {
     const hour = date.getHours()
     return hour >= 22 || hour < 7
+  }
+
+  const handleDisplayNameChange = (value: string): void => {
+    setDisplayName(value)
+  }
+
+  const saveDisplayName = (): void => {
+    void window.api
+      .setDisplayName(displayName)
+      .then(setDisplayName)
+      .catch(() => undefined)
   }
 
   const TogglePill = ({
@@ -427,7 +491,7 @@ function App(): React.JSX.Element {
             </span>
           </p>
           <h1 className="text-3xl font-semibold leading-tight text-slate-900 dark:text-slate-100 md:text-4xl font-['Fraunces']">
-            {greeting}, welcome back.
+            {greeting}, {displayGreetingName}.
           </h1>
           <p className="max-w-xl text-sm text-slate-600 dark:text-slate-300">
             This dashboard keeps the essentials visible, so you can feel confident about your
@@ -481,6 +545,18 @@ function App(): React.JSX.Element {
       {activeMenu === 'dashboard' && (
         <main className="mx-auto mt-8 grid w-full max-w-6xl gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <section className="space-y-6">
+            {needsMachineRest && (
+              <div className="rounded-2xl border border-amber-300/70 bg-linear-to-r from-amber-100 to-orange-100 p-4 text-amber-900 shadow-sm dark:border-amber-500/30 dark:from-amber-500/20 dark:to-orange-500/20 dark:text-amber-100">
+                <p className="text-sm font-bold uppercase tracking-[0.16em]">
+                  Machine rest reminder
+                </p>
+                <p className="mt-1 text-sm font-medium">
+                  This machine has been running for over 10 hours. Give it some rest for better
+                  performance.
+                </p>
+              </div>
+            )}
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className={`${cardClass} p-5`}>
                 <p className="text-xs uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
@@ -512,6 +588,17 @@ function App(): React.JSX.Element {
                   Since {bootedAt ? formatDateTime(bootedAt) : 'loading...'}
                 </p>
               </div>
+              <div className={`${cardClass} p-5 md:col-span-2`}>
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+                  Motivation for today
+                </p>
+                <p className="mt-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  &ldquo;{todaysQuote.quote}&rdquo;
+                </p>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  - {todaysQuote.author}
+                </p>
+              </div>
             </div>
 
             <div className={`${panelClass} p-6`}>
@@ -530,6 +617,9 @@ function App(): React.JSX.Element {
                   onStartBlink={handleStartBlink}
                   onStartHydration={handleStartHydration}
                   onStartDrink={handleStartDrink}
+                  blinkEnabled={blinkConfig.enabled}
+                  hydrationEnabled={hydrationConfig.enabled}
+                  drinkEnabled={drinkConfig.enabled}
                 />
               </div>
             </div>
@@ -544,6 +634,24 @@ function App(): React.JSX.Element {
             Adjust the experience to match how you like to work.
           </p>
           <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className={`${cardClass} p-5 col-span-2`}>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your name</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Used for personalized greetings in dashboard
+              </p>
+              <div className="mt-4 flex items-center gap-2">
+                <input
+                  className="w-full rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                  value={displayName}
+                  onChange={(event) => handleDisplayNameChange(event.target.value)}
+                  onBlur={saveDisplayName}
+                  placeholder="Enter your name"
+                />
+              </div>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Saved automatically when you leave the field.
+              </p>
+            </div>
             <div className={`${cardClass} p-5 flex justify-between`}>
               <div>
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -711,6 +819,7 @@ function App(): React.JSX.Element {
                 }
               />
             </div>
+
             <div className={`${cardClass} p-5`}>
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 Health strictness
@@ -752,13 +861,43 @@ function App(): React.JSX.Element {
                     A gentle black screen reminder. Recommended: every 15-22 minutes.
                   </p>
                 </div>
-                <button
-                  className="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
-                  onClick={() => updateBlinkConfig({ enabled: !blinkConfig.enabled })}
-                  type="button"
-                >
-                  {blinkConfig.enabled ? 'Enabled' : 'Disabled'}
-                </button>
+                <TogglePill
+                  enabled={blinkConfig.enabled}
+                  onClick={toggleBlinkEnabled}
+                  enabledColor="bg-gradient-to-r from-indigo-500 to-sky-500"
+                  disabledColor="bg-gradient-to-r from-slate-500 to-slate-700"
+                  ariaLabel="Toggle blink overlay"
+                  onIcon={
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+                      <circle cx="12" cy="12" r="2.5" />
+                    </svg>
+                  }
+                  offIcon={
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+                      <path d="M4 4l16 16" />
+                    </svg>
+                  }
+                />
               </div>
               <div className="mt-5 grid gap-4 md:grid-cols-4">
                 <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -825,13 +964,42 @@ function App(): React.JSX.Element {
                     Periodic water reminders. Recommended: every 60 minutes.
                   </p>
                 </div>
-                <button
-                  className="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
-                  onClick={() => updateHydrationConfig({ enabled: !hydrationConfig.enabled })}
-                  type="button"
-                >
-                  {hydrationConfig.enabled ? 'Enabled' : 'Disabled'}
-                </button>
+                <TogglePill
+                  enabled={hydrationConfig.enabled}
+                  onClick={toggleHydrationEnabled}
+                  enabledColor="bg-gradient-to-r from-cyan-500 to-teal-500"
+                  disabledColor="bg-gradient-to-r from-slate-500 to-slate-700"
+                  ariaLabel="Toggle hydration lock"
+                  onIcon={
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 2s5 5.2 5 9a5 5 0 0 1-10 0c0-3.8 5-9 5-9Z" />
+                    </svg>
+                  }
+                  offIcon={
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 2s5 5.2 5 9a5 5 0 0 1-10 0c0-3.8 5-9 5-9Z" />
+                      <path d="M4 4l16 16" />
+                    </svg>
+                  }
+                />
               </div>
               <div className="mt-5 grid gap-4 md:grid-cols-3">
                 <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -885,13 +1053,44 @@ function App(): React.JSX.Element {
                     Coffee, tea, or juice reminders. Recommended: every 180 minutes.
                   </p>
                 </div>
-                <button
-                  className="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
-                  onClick={() => updateDrinkConfig({ enabled: !drinkConfig.enabled })}
-                  type="button"
-                >
-                  {drinkConfig.enabled ? 'Enabled' : 'Disabled'}
-                </button>
+                <TogglePill
+                  enabled={drinkConfig.enabled}
+                  onClick={toggleDrinkEnabled}
+                  enabledColor="bg-gradient-to-r from-amber-500 to-orange-500"
+                  disabledColor="bg-gradient-to-r from-slate-500 to-slate-700"
+                  ariaLabel="Toggle focus drink"
+                  onIcon={
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 6h12v4a6 6 0 1 1-12 0V6Z" />
+                      <path d="M16 8h2a2 2 0 0 1 0 4h-2" />
+                    </svg>
+                  }
+                  offIcon={
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 6h12v4a6 6 0 1 1-12 0V6Z" />
+                      <path d="M16 8h2a2 2 0 0 1 0 4h-2" />
+                      <path d="M4 4l16 16" />
+                    </svg>
+                  }
+                />
               </div>
               <div className="mt-5 grid gap-4 md:grid-cols-3">
                 <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -980,7 +1179,7 @@ function App(): React.JSX.Element {
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <a
-                  href="https://github.com/anburocky3/arokiyam-app"
+                  href="https://github.com/anburocky3/arokiyam-app/fork"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
