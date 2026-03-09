@@ -25,6 +25,8 @@ declare global {
       setAutoStart: (enabled: boolean) => Promise<boolean>
       getNotificationsEnabled: () => Promise<boolean>
       setNotificationsEnabled: (enabled: boolean) => Promise<boolean>
+      getQuietHoursEnabled: () => Promise<boolean>
+      setQuietHoursEnabled: (enabled: boolean) => Promise<boolean>
       getStressSnapshot: () => Promise<StressSnapshot>
       requestBreak: () => Promise<void>
       skipBreak: () => Promise<void>

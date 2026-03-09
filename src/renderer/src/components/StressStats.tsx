@@ -19,9 +19,27 @@ const formatCountdown = (target: number): string => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
-const getActivityCountdown = (label: string, time: number | null): string => {
-  if (!time) return `${label} · --:--`
-  return `${label} · ${formatCountdown(time)}`
+const formatHumanRemaining = (target: number): string => {
+  const remaining = Math.max(0, target - Date.now())
+  const totalSeconds = Math.ceil(remaining / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0 && minutes > 0) return `${hours} hr ${minutes} min`
+  if (hours > 0) return `${hours} hr`
+  if (minutes > 0) return `${minutes} min`
+  return `${seconds} sec`
+}
+
+const getActivityTime = (time: number | null): string => {
+  if (!time) return '--:--'
+  return formatCountdown(time)
+}
+
+const getActivityHumanTime = (time: number | null): string => {
+  if (!time) return '--'
+  return formatHumanRemaining(time)
 }
 
 export const StressStats = ({
@@ -74,7 +92,7 @@ export const StressStats = ({
   }, [])
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-4 md:grid-cols-3">
       <div>
         <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
           Keys per minute
@@ -91,7 +109,7 @@ export const StressStats = ({
           {formatNumber(snapshot.mouseDistancePerMin)} px
         </p>
       </div>
-      <div>
+      <div className="">
         <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
           Wrist odometer
         </p>
@@ -99,72 +117,107 @@ export const StressStats = ({
           {formatNumber(snapshot.totalMouseDistance)} px
         </p>
       </div>
-      <div>
+      <div className="col-span-3">
         <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
           Next activity
         </p>
-        <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-          {getActivityCountdown(primaryActivity.label, primaryActivity.time)}
-        </p>
-        <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-          {getActivityCountdown(secondaryActivity.label, secondaryActivity.time)}
-        </p>
-        <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-          {getActivityCountdown(hydrationActivity.label, hydrationActivity.time)}
-        </p>
-        <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-          {getActivityCountdown(drinkActivity.label, drinkActivity.time)}
-        </p>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Randomized based on stress · Scroll streak {scrollMinutes} min
-        </p>
-        <div className="mt-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-            Quick actions
-          </p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <button
-              className={`${actionButtonBase} ${
-                canStartBlink ? actionButtonEnabled : actionButtonDisabled
-              }`}
-              onClick={onStartBlink}
-              disabled={!canStartBlink}
-              type="button"
-            >
-              Start blink
-            </button>
-            <button
-              className={`${actionButtonBase} ${
-                canStartBreak ? actionButtonEnabled : actionButtonDisabled
-              }`}
-              onClick={onStartBreak}
-              disabled={!canStartBreak}
-              type="button"
-            >
-              Start break
-            </button>
-            <button
-              className={`${actionButtonBase} ${
-                canStartHydration ? actionButtonEnabled : actionButtonDisabled
-              }`}
-              onClick={onStartHydration}
-              disabled={!canStartHydration}
-              type="button"
-            >
-              Start hydration
-            </button>
-            <button
-              className={`${actionButtonBase} ${
-                canStartDrink ? actionButtonEnabled : actionButtonDisabled
-              }`}
-              onClick={onStartDrink}
-              disabled={!canStartDrink}
-              type="button"
-            >
-              Start drink
-            </button>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-indigo-200/70 bg-linear-to-br from-indigo-100 to-sky-100 p-4 dark:border-indigo-500/30 dark:from-indigo-500/25 dark:to-sky-500/20">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700 dark:text-indigo-200">
+                {primaryActivity.label}
+              </p>
+              <button
+                className={`${actionButtonBase} px-2 py-1 text-[11px] ${
+                  canStartBlink ? actionButtonEnabled : actionButtonDisabled
+                }`}
+                onClick={onStartBlink}
+                disabled={!canStartBlink}
+                type="button"
+              >
+                Blink now
+              </button>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-indigo-900 dark:text-white">
+              {getActivityTime(primaryActivity.time)}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-indigo-700/80 dark:text-indigo-200/90">
+              in {getActivityHumanTime(primaryActivity.time)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-rose-200/70 bg-linear-to-br from-rose-100 to-orange-100 p-4 dark:border-rose-500/30 dark:from-rose-500/20 dark:to-orange-500/20">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-rose-700 dark:text-rose-200">
+                {secondaryActivity.label}
+              </p>
+              <button
+                className={`${actionButtonBase} px-2 py-1 text-[11px] ${
+                  canStartBreak ? actionButtonEnabled : actionButtonDisabled
+                }`}
+                onClick={onStartBreak}
+                disabled={!canStartBreak}
+                type="button"
+              >
+                Break now
+              </button>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-rose-900 dark:text-white">
+              {getActivityTime(secondaryActivity.time)}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-rose-700/80 dark:text-rose-200/90">
+              in {getActivityHumanTime(secondaryActivity.time)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-cyan-200/70 bg-linear-to-br from-cyan-100 to-teal-100 p-4 dark:border-cyan-500/30 dark:from-cyan-500/20 dark:to-emerald-500/20">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-200">
+                {hydrationActivity.label}
+              </p>
+              <button
+                className={`${actionButtonBase} px-2 py-1 text-[11px] ${
+                  canStartHydration ? actionButtonEnabled : actionButtonDisabled
+                }`}
+                onClick={onStartHydration}
+                disabled={!canStartHydration}
+                type="button"
+              >
+                Hydrate now
+              </button>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-cyan-900 dark:text-white">
+              {getActivityTime(hydrationActivity.time)}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-cyan-700/80 dark:text-cyan-200/90">
+              in {getActivityHumanTime(hydrationActivity.time)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-amber-200/70 bg-linear-to-br from-amber-100 to-lime-100 p-4 dark:border-amber-500/30 dark:from-amber-500/20 dark:to-lime-500/20">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-200">
+                {drinkActivity.label}
+              </p>
+              <button
+                className={`${actionButtonBase} px-2 py-1 text-[11px] ${
+                  canStartDrink ? actionButtonEnabled : actionButtonDisabled
+                }`}
+                onClick={onStartDrink}
+                disabled={!canStartDrink}
+                type="button"
+              >
+                Drink now
+              </button>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-amber-900 dark:text-white">
+              {getActivityTime(drinkActivity.time)}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-amber-700/80 dark:text-amber-200/90">
+              in {getActivityHumanTime(drinkActivity.time)}
+            </p>
           </div>
         </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 ml-2">
+          Randomized based on stress · Scroll streak {scrollMinutes} min
+        </p>
       </div>
     </div>
   )

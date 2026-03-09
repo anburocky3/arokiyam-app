@@ -12,7 +12,7 @@ import {
 import os from 'os'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { optimizer, is } from '@electron-toolkit/utils'
 import { createStressMonitor } from './stressMonitor'
 import type {
   BlinkConfig,
@@ -28,9 +28,22 @@ let overlayWindow: BrowserWindow | null = null
 let stressMonitor: ReturnType<typeof createStressMonitor> | null = null
 let tray: Tray | null = null
 let isQuitting = false
+const APP_DISPLAY_NAME = 'Arokiyam'
+const APP_USER_MODEL_ID = 'Arokiyam'
+const QUIET_HOURS_START_HOUR = 22
+const QUIET_HOURS_END_HOUR = 7
+const WINDOWS_AUTO_START_ARGS = ['--auto-launch']
 
 const getAutoStartStatus = (): boolean => {
   if (!app.isPackaged) return false
+  if (process.platform === 'win32') {
+    const withArgs = app.getLoginItemSettings({
+      path: process.execPath,
+      args: WINDOWS_AUTO_START_ARGS
+    }).openAtLogin
+    const legacy = app.getLoginItemSettings().openAtLogin
+    return withArgs || legacy
+  }
   return app.getLoginItemSettings().openAtLogin
 }
 
@@ -44,8 +57,17 @@ const setAutoStartStatus = (enabled: boolean): boolean => {
   if (process.platform === 'win32') {
     app.setLoginItemSettings({
       openAtLogin: enabled,
-      path: process.execPath
+      path: process.execPath,
+      args: WINDOWS_AUTO_START_ARGS
     })
+
+    // Clear legacy registration shape (without args) to avoid duplicate/conflicting entries.
+    if (!enabled) {
+      app.setLoginItemSettings({
+        openAtLogin: false,
+        path: process.execPath
+      })
+    }
   } else {
     app.setLoginItemSettings({ openAtLogin: enabled })
   }
@@ -55,10 +77,12 @@ const setAutoStartStatus = (enabled: boolean): boolean => {
 
 type AppPreferences = {
   notificationsEnabled: boolean
+  quietHoursEnabled: boolean
 }
 
 const defaultAppPreferences: AppPreferences = {
-  notificationsEnabled: true
+  notificationsEnabled: true,
+  quietHoursEnabled: true
 }
 
 const preferencesPath = join(app.getPath('userData'), 'preferences.json')
@@ -83,6 +107,19 @@ const writePreferences = (preferences: AppPreferences): void => {
   } catch {
     // Ignore write failures and continue with in-memory state.
   }
+}
+
+const isInQuietHours = (date = new Date()): boolean => {
+  const hour = date.getHours()
+  // Quiet hours wrap across midnight: 22:00 -> 07:00
+  return hour >= QUIET_HOURS_START_HOUR || hour < QUIET_HOURS_END_HOUR
+}
+
+const shouldShowNotification = (preferences: AppPreferences): boolean => {
+  if (!Notification.isSupported()) return false
+  if (!preferences.notificationsEnabled) return false
+  if (preferences.quietHoursEnabled && isInQuietHours()) return false
+  return true
 }
 
 const getEmptySnapshot = (): StressSnapshot => ({
@@ -130,6 +167,8 @@ const getTrayIconPath = (): string => getIconPath('32x32.png')
 
 const getWindowIconPath = (): string =>
   process.platform === 'win32' ? getIconPath('icon.ico') : getIconPath('256x256.png')
+
+const getNotificationIcon = (): string => getIconPath('256x256.png')
 
 const showMainWindow = (): void => {
   if (!mainWindow) return
@@ -196,7 +235,7 @@ const applyOverlayMode = (state: OverlayState): void => {
 function createWindow(): void {
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    title: 'Arokiyam v0.1.0',
+    title: 'Arokiyam v1.0.0',
     width: 900,
     height: 670,
     minWidth: 900,
@@ -290,19 +329,30 @@ app.whenReady().then(() => {
     app.setLoginItemSettings({ openAtLogin: false })
   }
 
-  app.setName('Arokiyam')
+  app.setName(APP_DISPLAY_NAME)
+  if (process.platform === 'win32') {
+    // Must match installer appId so Windows can resolve branding (name/icon) for toasts.
+    app.setAppUserModelId(APP_USER_MODEL_ID)
+  }
+  if (process.platform === 'linux') {
+    // Use a friendly desktop entry name so Linux notifications avoid package-like labels.
+    const linuxApp = app as Electron.App & {
+      setDesktopName?: (desktopName: string) => void
+    }
+    if (typeof linuxApp.setDesktopName === 'function') {
+      linuxApp.setDesktopName(`${APP_DISPLAY_NAME}.desktop`)
+    }
+  }
   let appPreferences = readPreferences()
 
-  if (Notification.isSupported() && appPreferences.notificationsEnabled) {
+  if (shouldShowNotification(appPreferences)) {
     const readyNotice = new Notification({
-      title: app.getName(),
-      body: 'Notifications are enabled.'
+      title: APP_DISPLAY_NAME,
+      body: 'Notifications are enabled.',
+      icon: getNotificationIcon()
     })
     readyNotice.show()
   }
-
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('cdn.arokiyam')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -341,7 +391,7 @@ app.whenReady().then(() => {
     applyOverlayMode(state)
 
     const activityStarted = previousActivityMode === 'normal' && state.mode !== 'normal'
-    if (activityStarted && Notification.isSupported() && appPreferences.notificationsEnabled) {
+    if (activityStarted && shouldShowNotification(appPreferences)) {
       const activityLabel =
         state.mode === 'break'
           ? 'Break'
@@ -351,8 +401,9 @@ app.whenReady().then(() => {
               ? 'Hydration'
               : 'Drink'
       const notification = new Notification({
-        title: `${app.getName()} reminder`,
-        body: `${activityLabel} activity started.`
+        title: APP_DISPLAY_NAME,
+        body: `${activityLabel} activity started.`,
+        icon: getNotificationIcon()
       })
       notification.show()
     }
@@ -391,14 +442,21 @@ app.whenReady().then(() => {
   ipcMain.handle('settings:setNotificationsEnabled', (_event, enabled: boolean) => {
     appPreferences = { ...appPreferences, notificationsEnabled: enabled }
     writePreferences(appPreferences)
-    if (enabled && Notification.isSupported()) {
+    if (enabled && shouldShowNotification(appPreferences)) {
       const notification = new Notification({
-        title: app.getName(),
-        body: 'Notifications enabled.'
+        title: APP_DISPLAY_NAME,
+        body: 'Notifications enabled.',
+        icon: getNotificationIcon()
       })
       notification.show()
     }
     return appPreferences.notificationsEnabled
+  })
+  ipcMain.handle('settings:getQuietHoursEnabled', () => appPreferences.quietHoursEnabled)
+  ipcMain.handle('settings:setQuietHoursEnabled', (_event, enabled: boolean) => {
+    appPreferences = { ...appPreferences, quietHoursEnabled: enabled }
+    writePreferences(appPreferences)
+    return appPreferences.quietHoursEnabled
   })
 
   createWindow()

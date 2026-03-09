@@ -19,6 +19,9 @@ const api = {
     ipcRenderer.invoke('settings:getNotificationsEnabled') as Promise<boolean>,
   setNotificationsEnabled: (enabled: boolean) =>
     ipcRenderer.invoke('settings:setNotificationsEnabled', enabled) as Promise<boolean>,
+  getQuietHoursEnabled: () => ipcRenderer.invoke('settings:getQuietHoursEnabled') as Promise<boolean>,
+  setQuietHoursEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke('settings:setQuietHoursEnabled', enabled) as Promise<boolean>,
   getStressSnapshot: () => ipcRenderer.invoke('stress:getSnapshot') as Promise<StressSnapshot>,
   requestBreak: () => ipcRenderer.invoke('break:request') as Promise<void>,
   skipBreak: () => ipcRenderer.invoke('break:skip') as Promise<void>,

@@ -111,6 +111,7 @@ function App(): React.JSX.Element {
     useState<HealthStrictness>(getStoredHealthStrictness)
   const [autoStartEnabled, setAutoStartEnabled] = useState(true)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(true)
   const shouldTrackUptime = uptimeSeconds !== null
   const stressSnapshot = useStressMonitor()
   const [activityToast, setActivityToast] = useState<{ message: string; expiresAt: number } | null>(
@@ -157,6 +158,16 @@ function App(): React.JSX.Element {
       .catch(() => {
         if (!isMounted) return
         setNotificationsEnabled(true)
+      })
+    void window.api
+      .getQuietHoursEnabled()
+      .then((enabled) => {
+        if (!isMounted) return
+        setQuietHoursEnabled(enabled)
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setQuietHoursEnabled(true)
       })
 
     return () => {
@@ -304,13 +315,67 @@ function App(): React.JSX.Element {
       .catch(() => setNotificationsEnabled(!next))
   }
 
+  const toggleQuietHours = (): void => {
+    const next = !quietHoursEnabled
+    setQuietHoursEnabled(next)
+    void window.api
+      .setQuietHoursEnabled(next)
+      .then(setQuietHoursEnabled)
+      .catch(() => setQuietHoursEnabled(!next))
+  }
+
+  const isInQuietHours = (date = new Date()): boolean => {
+    const hour = date.getHours()
+    return hour >= 22 || hour < 7
+  }
+
+  const TogglePill = ({
+    enabled,
+    onClick,
+    enabledColor,
+    disabledColor,
+    onIcon,
+    offIcon,
+    ariaLabel
+  }: {
+    enabled: boolean
+    onClick: () => void
+    enabledColor: string
+    disabledColor: string
+    onIcon: React.JSX.Element
+    offIcon: React.JSX.Element
+    ariaLabel: string
+  }): React.JSX.Element => (
+    <button
+      className={`group relative inline-flex h-6 w-12 items-center rounded-full p-1 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
+        enabled
+          ? `${enabledColor} shadow-[0_5px_24px_rgba(16,185,129,0.35)]`
+          : `${disabledColor} shadow-[0_5px_24px_rgba(244,63,94,0.25)]`
+      }`}
+      onClick={onClick}
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      aria-label={ariaLabel}
+    >
+      <span
+        className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow transition-transform duration-300 ${
+          enabled ? 'translate-x-6' : '-translate-x-1'
+        }`}
+      >
+        {enabled ? onIcon : offIcon}
+      </span>
+    </button>
+  )
+
   const panelClass =
     'rounded-3xl border border-slate-200/70 bg-white/70 shadow-[0_24px_60px_rgba(15,23,42,0.12)] backdrop-blur-2xl dark:border-slate-700/60 dark:bg-slate-900/70'
   const cardClass =
     'rounded-2xl border border-slate-200/70 bg-white/70 dark:border-slate-700/60 dark:bg-slate-900/70'
 
   return (
-    <div className="relative min-h-screen bg-[radial-gradient(circle_at_top,#f8efe4_0%,#f3f6ff_45%,#eef7f1_100%)] px-6 py-8 font-['Space_Grotesk'] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,#1218260%,#0f172a55%,#0b1120_100%)] dark:text-slate-100 lg:px-12">
+    <div className="relative min-h-screen bg-[radial-gradient(circle_at_top,#f8efe4_0%,#f3f6ff_45%,#eef7f1_100%)] px-6 py-8 font-['Space_Grotesk'] text-slate-900 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,#000000_0%,#0f172a_55%,#0b1120_100%)] dark:text-slate-100 lg:px-12">
+      {/*   */}
       {activityToast && (
         <div className="absolute right-6 top-20 z-50 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm font-semibold text-slate-700 shadow-lg dark:border-slate-700/60 dark:bg-slate-900/90 dark:text-slate-100">
           {activityToast.message}
@@ -479,53 +544,172 @@ function App(): React.JSX.Element {
             Adjust the experience to match how you like to work.
           </p>
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div className={`${cardClass} p-5`}>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Notifications
-              </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Helpful reminders for updates
-              </p>
-              <div className="mt-4 flex items-center gap-2">
-                <button
-                  className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
-                  onClick={toggleNotifications}
-                  type="button"
-                >
-                  {notificationsEnabled ? 'Enabled' : 'Disabled'}
-                </button>
+            <div className={`${cardClass} p-5 flex justify-between`}>
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  Notifications
+                </p>
+                <small className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Helpful reminders for updates
+                </small>
               </div>
+              <TogglePill
+                enabled={notificationsEnabled}
+                onClick={toggleNotifications}
+                enabledColor="bg-gradient-to-r from-emerald-500 to-cyan-500"
+                disabledColor="bg-gradient-to-r from-slate-500 to-slate-700"
+                ariaLabel="Toggle notifications"
+                onIcon={
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
+                    <path d="M9 17a3 3 0 0 0 6 0" />
+                  </svg>
+                }
+                offIcon={
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M10.3 5.1A6 6 0 0 1 18 11v3.2a2 2 0 0 0 .6 1.4L20 17h-5" />
+                    <path d="M4 4l16 16" />
+                    <path d="M6.2 6.2A6 6 0 0 0 6 11v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
+                  </svg>
+                }
+              />
             </div>
-            <div className={`${cardClass} p-5`}>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Auto start</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Open Arokiyam at startup
-              </p>
-              <div className="mt-4 flex items-center gap-2">
-                <button
-                  className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+            <div className={`${cardClass} p-5 flex justify-between`}>
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  Auto start
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Open Arokiyam at startup
+                </p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Works after installing Arokiyam from setup. Portable/dev mode cannot auto start.
+                </p>
+              </div>
+
+              <div className="">
+                <TogglePill
+                  enabled={autoStartEnabled}
                   onClick={toggleAutoStart}
-                  type="button"
-                >
-                  {autoStartEnabled ? 'On' : 'Off'}
-                </button>
+                  enabledColor="bg-gradient-to-r from-sky-500 to-indigo-500"
+                  disabledColor="bg-gradient-to-r from-slate-500 to-slate-700"
+                  ariaLabel="Toggle auto start"
+                  onIcon={
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 12h10" />
+                      <path d="m10 6 6 6-6 6" />
+                    </svg>
+                  }
+                  offIcon={
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M8 8l8 8" />
+                      <path d="m16 8-8 8" />
+                    </svg>
+                  }
+                />
               </div>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                Works after installing Arokiyam from setup. Portable/dev mode cannot auto start.
-              </p>
             </div>
-            <div className={`${cardClass} p-5`}>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Quiet hours
-              </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Silence reminders overnight
-              </p>
-              <div className="mt-4 flex items-center gap-2">
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
-                  10:00 PM - 7:00 AM
-                </span>
+            <div className={`${cardClass} p-5 flex justify-between`}>
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  Quiet hours
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Silence reminders overnight
+                </p>
+                <div className="mt-4 flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      !quietHoursEnabled
+                        ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                        : isInQuietHours()
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                    }`}
+                  >
+                    {!quietHoursEnabled
+                      ? 'Disabled'
+                      : isInQuietHours()
+                        ? 'Active now'
+                        : 'Starts at 10:00 PM'}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    10:00 PM - 7:00 AM
+                  </span>
+                </div>
               </div>
+              <TogglePill
+                enabled={quietHoursEnabled}
+                onClick={toggleQuietHours}
+                enabledColor="bg-gradient-to-r from-violet-500 to-fuchsia-500"
+                disabledColor="bg-gradient-to-r from-slate-500 to-slate-700"
+                ariaLabel="Toggle quiet hours"
+                onIcon={
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+                  </svg>
+                }
+                offIcon={
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2M12 20v2M5 5l1.5 1.5M17.5 17.5 19 19M2 12h2M20 12h2M5 19l1.5-1.5M17.5 6.5 19 5" />
+                  </svg>
+                }
+              />
             </div>
             <div className={`${cardClass} p-5`}>
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -834,54 +1018,75 @@ function App(): React.JSX.Element {
         </section>
       )}
 
-      <div className="mx-auto mt-12 w-full max-w-6xl text-center text-xs text-slate-500 dark:text-slate-400 ">
-        <span className="text-sm mb-2 block font-medium text-slate-900 ">
-          Made with ❤️ by{' '}
+      <div className="mx-auto mt-10 w-full text-center text-xs text-slate-500 dark:text-slate-400 ">
+        <div className="dark:text-slate-300 mb-5 flex items-center justify-center">
+          <span className="mr-2">Made with ❤️ by </span>
+          {'  '}
           <a
             href="https://anbuselvan-annamalai.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-green-800"
+            className="text-green-800 font-medium dark:text-green-400 transition "
           >
             Anbuselvan Rocky
           </a>
-        </span>
-        <div className="mb-2 flex items-center justify-center gap-3">
+        </div>
+        <div className="mb-4 flex items-center justify-center gap-3">
           <a
             href="https://github.com/anburocky3"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-slate-600 underline dark:text-slate-300"
+            aria-label="GitHub profile"
+            title="GitHub"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/80 text-slate-600 transition hover:border-slate-500 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-200 dark:hover:text-white"
           >
-            GitHub
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.61-3.37-1.19-3.37-1.19-.45-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.61.07-.61 1 .07 1.53 1.02 1.53 1.02.89 1.52 2.33 1.08 2.9.83.09-.64.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.02-2.67-.1-.26-.44-1.28.1-2.66 0 0 .84-.27 2.75 1.02A9.6 9.6 0 0 1 12 6.84c.85 0 1.7.12 2.5.35 1.9-1.29 2.74-1.02 2.74-1.02.55 1.38.2 2.4.1 2.66.64.69 1.02 1.58 1.02 2.67 0 3.84-2.33 4.69-4.56 4.94.36.3.67.88.67 1.77v2.62c0 .27.18.58.69.48A10 10 0 0 0 12 2Z" />
+            </svg>
           </a>
           <a
-            href="https://github.com/anburocky3/arokiyam-app"
+            href="https://github.com/anburocky3/arokiyam-app/fork"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-slate-600 underline dark:text-slate-300"
+            aria-label="Repository"
+            title="Repository"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/80 text-slate-600 transition hover:border-slate-500 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-400 dark:hover:text-white"
           >
-            Repository
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M7.8 2h8.4C19.4 2 22 4.6 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8C4.6 22 2 19.4 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2m-.2 2A3.6 3.6 0 0 0 4 7.6v8.8C4 18.39 5.61 20 7.6 20h8.8a3.6 3.6 0 0 0 3.6-3.6V7.6C20 5.61 18.39 4 16.4 4zm9.65 1.5a1.25 1.25 0 0 1 1.25 1.25A1.25 1.25 0 0 1 17.25 8A1.25 1.25 0 0 1 16 6.75a1.25 1.25 0 0 1 1.25-1.25M12 7a5 5 0 0 1 5 5a5 5 0 0 1-5 5a5 5 0 0 1-5-5a5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3a3 3 0 0 0 3 3a3 3 0 0 0 3-3a3 3 0 0 0-3-3"
+              />
+            </svg>
           </a>
           <a
             href="https://anbuselvan-annamalai.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-slate-600 underline dark:text-slate-300"
+            aria-label="Website"
+            title="Website"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300/80 text-slate-600 transition hover:border-slate-500 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-400 dark:hover:text-white"
           >
-            Website
+            <svg
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M3 12h18" />
+              <path d="M12 3a15 15 0 0 1 0 18" />
+              <path d="M12 3a15 15 0 0 0 0 18" />
+            </svg>
           </a>
         </div>
-        {/* (
-        <a
-          href="https://github.com/anburocky3/arokiyam-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          GitHub
-        </a>
-        ) */}
-        <div>All Rights Reserved &copy; {new Date().getFullYear()} </div>
+        <div className="text-xs text-slate-500 dark:text-slate-400 ">
+          All Rights Reserved &copy; {new Date().getFullYear()}
+        </div>
       </div>
     </div>
   )
