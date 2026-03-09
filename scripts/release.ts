@@ -42,7 +42,13 @@ const run = (command: string, commandArgs: string[]): void => {
 const runGit = (commandArgs: string[]): void => {
   const result = spawnSync('git', commandArgs, {
     encoding: 'utf-8',
-    stdio: 'pipe'
+    stdio: 'pipe',
+    timeout: 120_000,
+    env: {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: '0',
+      GCM_INTERACTIVE: 'Never'
+    }
   })
 
   const stdout = result.stdout ?? ''
@@ -51,8 +57,20 @@ const runGit = (commandArgs: string[]): void => {
   if (stdout) process.stdout.write(stdout)
   if (stderr) process.stderr.write(stderr)
 
+  if (result.error && 'code' in result.error && result.error.code === 'ETIMEDOUT') {
+    console.error('Aborting release: git command timed out. No further git actions were applied.')
+    process.exit(1)
+  }
+
   const gitFatalOrError = /(^|\n)fatal:|(^|\n)error:/i.test(`${stdout}\n${stderr}`)
   if (result.status !== 0 || gitFatalOrError) {
+    const authPromptBlocked =
+      /terminal prompts disabled|could not read Username|authentication failed/i.test(
+        `${stdout}\n${stderr}`
+      )
+    if (authPromptBlocked) {
+      console.error('Git authentication is required. Run `git push` manually after signing in.')
+    }
     console.error(
       'Aborting release: git reported a fatal/error condition. No commit will be created.'
     )
