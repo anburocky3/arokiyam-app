@@ -39,6 +39,33 @@ const run = (command: string, commandArgs: string[]): void => {
   }
 }
 
+const runGit = (commandArgs: string[]): void => {
+  const result = spawnSync('git', commandArgs, {
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  })
+
+  const stdout = result.stdout ?? ''
+  const stderr = result.stderr ?? ''
+
+  if (stdout) process.stdout.write(stdout)
+  if (stderr) process.stderr.write(stderr)
+
+  const gitFatalOrError = /(^|\n)fatal:|(^|\n)error:/i.test(`${stdout}\n${stderr}`)
+  if (result.status !== 0 || gitFatalOrError) {
+    console.error(
+      'Aborting release: git reported a fatal/error condition. No commit will be created.'
+    )
+    process.exit(result.status ?? 1)
+  }
+}
+
+const assertGitHealthy = (): void => {
+  runGit(['--version'])
+  runGit(['rev-parse', '--is-inside-work-tree'])
+  runGit(['status', '--porcelain'])
+}
+
 const readCurrentVersion = (): string => {
   const packageJsonRaw = readFileSync('package.json', 'utf-8')
   const packageJson = JSON.parse(packageJsonRaw) as { version?: string }
@@ -59,9 +86,10 @@ const addVersionFiles = (): void => {
     files.push('npm-shrinkwrap.json')
   }
 
-  run('git', ['add', ...files])
+  runGit(['add', ...files])
 }
 
+assertGitHealthy()
 run('npm', ['version', bump, '--no-git-tag-version'])
 
 const version = readCurrentVersion()
@@ -69,7 +97,7 @@ const tag = `v${version}`
 const commitMessage = description ? `${tag} - ${description}` : tag
 
 addVersionFiles()
-run('git', ['commit', '-m', commitMessage])
-run('git', ['tag', tag])
-run('git', ['push'])
-run('git', ['push', '--tags'])
+runGit(['commit', '-m', commitMessage])
+runGit(['tag', tag])
+runGit(['push'])
+runGit(['push', '--tags'])
