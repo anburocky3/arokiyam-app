@@ -12,6 +12,17 @@ type BlinkConfig = {
   snoozeMinutes: number
 }
 
+type BreakConfig = {
+  enabled: boolean
+  minMinutes: number
+  maxMinutes: number
+  durationSeconds: number
+}
+
+type ActivityPacingConfig = {
+  minimumGapMinutes: number
+}
+
 type HydrationConfig = {
   enabled: boolean
   intervalMinutes: number
@@ -36,6 +47,13 @@ const defaultBlinkConfig: BlinkConfig = {
   snoozeMinutes: 5
 }
 
+const defaultBreakConfig: BreakConfig = {
+  enabled: true,
+  minMinutes: 45,
+  maxMinutes: 75,
+  durationSeconds: 60
+}
+
 const defaultHydrationConfig: HydrationConfig = {
   enabled: true,
   intervalMinutes: 60,
@@ -48,6 +66,10 @@ const defaultDrinkConfig: DrinkConfig = {
   intervalMinutes: 180,
   durationSeconds: 30,
   snoozeMinutes: 30
+}
+
+const defaultActivityPacingConfig: ActivityPacingConfig = {
+  minimumGapMinutes: 5
 }
 
 const defaultHealthStrictness: HealthStrictness = 'basic'
@@ -77,6 +99,17 @@ const getStoredBlinkConfig = (): BlinkConfig => {
   }
 }
 
+const getStoredBreakConfig = (): BreakConfig => {
+  const stored = window.localStorage.getItem('arokiyam-break-config')
+  if (!stored) return defaultBreakConfig
+  try {
+    const parsed = JSON.parse(stored) as BreakConfig
+    return { ...defaultBreakConfig, ...parsed }
+  } catch {
+    return defaultBreakConfig
+  }
+}
+
 const getStoredHydrationConfig = (): HydrationConfig => {
   const stored = window.localStorage.getItem('arokiyam-hydration-config')
   if (!stored) return defaultHydrationConfig
@@ -99,6 +132,17 @@ const getStoredDrinkConfig = (): DrinkConfig => {
   }
 }
 
+const getStoredActivityPacingConfig = (): ActivityPacingConfig => {
+  const stored = window.localStorage.getItem('arokiyam-activity-pacing-config')
+  if (!stored) return defaultActivityPacingConfig
+  try {
+    const parsed = JSON.parse(stored) as ActivityPacingConfig
+    return { ...defaultActivityPacingConfig, ...parsed }
+  } catch {
+    return defaultActivityPacingConfig
+  }
+}
+
 const getStoredHealthStrictness = (): HealthStrictness => {
   const stored = window.localStorage.getItem('arokiyam-health-strictness')
   if (stored === 'basic' || stored === 'medium' || stored === 'strict') return stored
@@ -112,9 +156,13 @@ function App(): React.JSX.Element {
     'dashboard'
   )
   const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme)
+  const [breakConfig, setBreakConfig] = useState<BreakConfig>(getStoredBreakConfig)
   const [blinkConfig, setBlinkConfig] = useState<BlinkConfig>(getStoredBlinkConfig)
   const [hydrationConfig, setHydrationConfig] = useState<HydrationConfig>(getStoredHydrationConfig)
   const [drinkConfig, setDrinkConfig] = useState<DrinkConfig>(getStoredDrinkConfig)
+  const [activityPacingConfig, setActivityPacingConfig] = useState<ActivityPacingConfig>(
+    getStoredActivityPacingConfig
+  )
   const [healthStrictness, setHealthStrictness] =
     useState<HealthStrictness>(getStoredHealthStrictness)
   const [autoStartEnabled, setAutoStartEnabled] = useState(true)
@@ -214,6 +262,11 @@ function App(): React.JSX.Element {
   }, [theme])
 
   useEffect(() => {
+    window.localStorage.setItem('arokiyam-break-config', JSON.stringify(breakConfig))
+    void window.api.setBreakConfig(breakConfig)
+  }, [breakConfig])
+
+  useEffect(() => {
     window.localStorage.setItem('arokiyam-blink-config', JSON.stringify(blinkConfig))
     void window.api.setBlinkConfig(blinkConfig)
   }, [blinkConfig])
@@ -227,6 +280,14 @@ function App(): React.JSX.Element {
     window.localStorage.setItem('arokiyam-drink-config', JSON.stringify(drinkConfig))
     void window.api.setDrinkConfig(drinkConfig)
   }, [drinkConfig])
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      'arokiyam-activity-pacing-config',
+      JSON.stringify(activityPacingConfig)
+    )
+    void window.api.setActivityPacingConfig(activityPacingConfig)
+  }, [activityPacingConfig])
 
   useEffect(() => {
     window.localStorage.setItem('arokiyam-health-strictness', healthStrictness)
@@ -255,7 +316,7 @@ function App(): React.JSX.Element {
       if (blinkConfig.enabled && !snapshot.isBlinkActive) {
         candidates.push({ label: 'Blink', time: snapshot.nextBlinkAt })
       }
-      if (!snapshot.isBreakActive) {
+      if (breakConfig.enabled && !snapshot.isBreakActive) {
         candidates.push({ label: 'Break', time: snapshot.nextBreakAt })
       }
       if (hydrationConfig.enabled && !snapshot.isHydrationActive) {
@@ -289,6 +350,7 @@ function App(): React.JSX.Element {
     activityToast,
     notificationsEnabled,
     quietHoursEnabled,
+    breakConfig.enabled,
     blinkConfig.enabled,
     hydrationConfig.enabled,
     drinkConfig.enabled
@@ -322,6 +384,14 @@ function App(): React.JSX.Element {
     void window.api.requestDrink()
   }
 
+  const updateBreakConfig = (patch: Partial<BreakConfig>): void => {
+    setBreakConfig((prev) => {
+      const next = { ...prev, ...patch }
+      if (next.minMinutes > next.maxMinutes) next.maxMinutes = next.minMinutes
+      return next
+    })
+  }
+
   const updateBlinkConfig = (patch: Partial<BlinkConfig>): void => {
     setBlinkConfig((prev) => {
       const next = { ...prev, ...patch }
@@ -336,6 +406,10 @@ function App(): React.JSX.Element {
 
   const updateDrinkConfig = (patch: Partial<DrinkConfig>): void => {
     setDrinkConfig((prev) => ({ ...prev, ...patch }))
+  }
+
+  const updateActivityPacingConfig = (patch: Partial<ActivityPacingConfig>): void => {
+    setActivityPacingConfig((prev) => ({ ...prev, ...patch }))
   }
 
   const toggleAutoStart = (): void => {
@@ -363,6 +437,10 @@ function App(): React.JSX.Element {
       .setQuietHoursEnabled(next)
       .then(setQuietHoursEnabled)
       .catch(() => setQuietHoursEnabled(!next))
+  }
+
+  const toggleBreakEnabled = (): void => {
+    updateBreakConfig({ enabled: !breakConfig.enabled })
   }
 
   const toggleBlinkEnabled = (): void => {
@@ -617,6 +695,7 @@ function App(): React.JSX.Element {
                   onStartBlink={handleStartBlink}
                   onStartHydration={handleStartHydration}
                   onStartDrink={handleStartDrink}
+                  breakEnabled={breakConfig.enabled}
                   blinkEnabled={blinkConfig.enabled}
                   hydrationEnabled={hydrationConfig.enabled}
                   drinkEnabled={drinkConfig.enabled}
@@ -851,6 +930,124 @@ function App(): React.JSX.Element {
                 </p>
               </div>
             </div>
+            <div className={`${cardClass} p-5 md:col-span-2`}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    Break activity
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Full-screen reset sessions. Recommended: every 45-75 minutes.
+                  </p>
+                </div>
+                <TogglePill
+                  enabled={breakConfig.enabled}
+                  onClick={toggleBreakEnabled}
+                  enabledColor="bg-gradient-to-r from-rose-500 to-orange-500"
+                  disabledColor="bg-gradient-to-r from-slate-500 to-slate-700"
+                  ariaLabel="Toggle break activity"
+                  onIcon={
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 12h16" />
+                      <path d="M12 4v16" />
+                    </svg>
+                  }
+                  offIcon={
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="m18 6-12 12" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  }
+                />
+              </div>
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Min minutes
+                  <input
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    type="number"
+                    min={20}
+                    max={180}
+                    value={breakConfig.minMinutes}
+                    onChange={(event) =>
+                      updateBreakConfig({ minMinutes: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Max minutes
+                  <input
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    type="number"
+                    min={20}
+                    max={240}
+                    value={breakConfig.maxMinutes}
+                    onChange={(event) =>
+                      updateBreakConfig({ maxMinutes: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Duration (sec)
+                  <input
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    type="number"
+                    min={20}
+                    max={300}
+                    value={breakConfig.durationSeconds}
+                    onChange={(event) =>
+                      updateBreakConfig({ durationSeconds: Number(event.target.value) })
+                    }
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className={`${cardClass} p-5 md:col-span-2`}>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Global activity pacing
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Minimum time gap between any two activities.
+              </p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Minimum gap (min)
+                  <input
+                    className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-100"
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={activityPacingConfig.minimumGapMinutes}
+                    onChange={(event) =>
+                      updateActivityPacingConfig({ minimumGapMinutes: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <p className="self-end text-xs text-slate-500 dark:text-slate-400">
+                  Example: 8 means once an activity starts, the next one cannot start for 8 minutes.
+                </p>
+              </div>
+            </div>
+
             <div className={`${cardClass} p-5 md:col-span-2`}>
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>

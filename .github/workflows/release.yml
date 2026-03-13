@@ -88,6 +88,8 @@ jobs:
           generate_release_notes: true
           files: |
             release-assets/**/*-setup.exe
+            release-assets/**/latest*.yml
+            release-assets/**/*.blockmap
             release-assets/**/*.dmg
             release-assets/**/*.AppImage
             release-assets/**/*.deb

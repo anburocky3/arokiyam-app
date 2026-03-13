@@ -29,6 +29,17 @@ const getStoredHealthStrictness = (): HealthStrictness => {
   return 'basic'
 }
 
+const getStoredActivityEnabled = (key: string, defaultEnabled = true): boolean => {
+  const raw = window.localStorage.getItem(key)
+  if (!raw) return defaultEnabled
+  try {
+    const parsed = JSON.parse(raw) as { enabled?: boolean }
+    return parsed.enabled ?? defaultEnabled
+  } catch {
+    return defaultEnabled
+  }
+}
+
 export const OverlayApp = (): React.JSX.Element => {
   const [overlayState, setOverlayState] = useState<OverlayViewState>({
     state: {
@@ -125,18 +136,23 @@ export const OverlayApp = (): React.JSX.Element => {
     const snapshot = overlayState.snapshot
     if (!snapshot) return null
 
+    const breakEnabled = getStoredActivityEnabled('arokiyam-break-config', true)
+    const blinkEnabled = getStoredActivityEnabled('arokiyam-blink-config', true)
+    const hydrationEnabled = getStoredActivityEnabled('arokiyam-hydration-config', true)
+    const drinkEnabled = getStoredActivityEnabled('arokiyam-drink-config', true)
+
     const candidates: Array<{ label: string; time: number }> = []
 
-    if (!snapshot.isBlinkActive) {
+    if (blinkEnabled && !snapshot.isBlinkActive) {
       candidates.push({ label: 'Blink', time: snapshot.nextBlinkAt })
     }
-    if (!snapshot.isBreakActive) {
+    if (breakEnabled && !snapshot.isBreakActive) {
       candidates.push({ label: 'Break', time: snapshot.nextBreakAt })
     }
-    if (!snapshot.isHydrationActive) {
+    if (hydrationEnabled && !snapshot.isHydrationActive) {
       candidates.push({ label: 'Hydration', time: snapshot.nextHydrationAt })
     }
-    if (!snapshot.isDrinkActive) {
+    if (drinkEnabled && !snapshot.isDrinkActive) {
       candidates.push({ label: 'Drink', time: snapshot.nextDrinkAt })
     }
 

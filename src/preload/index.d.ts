@@ -1,6 +1,8 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
+  ActivityPacingConfig,
   BlinkConfig,
+  BreakConfig,
   DrinkConfig,
   HydrationConfig,
   OverlayState,
@@ -30,6 +32,7 @@ declare global {
       getDisplayName: () => Promise<string>
       setDisplayName: (name: string) => Promise<string>
       getStressSnapshot: () => Promise<StressSnapshot>
+      setBreakConfig: (config: BreakConfig) => Promise<void>
       requestBreak: () => Promise<void>
       skipBreak: () => Promise<void>
       requestBlink: () => Promise<void>
@@ -44,6 +47,7 @@ declare global {
       setDrinkConfig: (config: DrinkConfig) => Promise<void>
       completeDrink: () => Promise<void>
       snoozeDrink: () => Promise<void>
+      setActivityPacingConfig: (config: ActivityPacingConfig) => Promise<void>
       onStressUpdate: (callback: (snapshot: StressSnapshot) => void) => () => void
       onOverlayState: (callback: (state: OverlayState) => void) => () => void
       onOverlayToast: (callback: (toast: OverlayToast) => void) => () => void

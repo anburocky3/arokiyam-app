@@ -9,6 +9,7 @@ type StressPanelProps = {
   onStartBlink: () => void
   onStartHydration: () => void
   onStartDrink: () => void
+  breakEnabled: boolean
   blinkEnabled: boolean
   hydrationEnabled: boolean
   drinkEnabled: boolean
@@ -20,6 +21,7 @@ export const StressPanel = ({
   onStartBlink,
   onStartHydration,
   onStartDrink,
+  breakEnabled,
   blinkEnabled,
   hydrationEnabled,
   drinkEnabled
@@ -34,6 +36,7 @@ export const StressPanel = ({
           isBreakActive={snapshot.isBreakActive}
           breakEndsAt={snapshot.breakEndsAt}
           onStartBreak={onStartBreak}
+          breakEnabled={breakEnabled}
         />
       </div>
       <div className="rounded-2xl border border-slate-200/70 bg-white/70 p-5 shadow-sm backdrop-blur-2xl dark:border-slate-700/60 dark:bg-slate-900/70 lg:col-span-2">
@@ -43,6 +46,7 @@ export const StressPanel = ({
           onStartBlink={onStartBlink}
           onStartHydration={onStartHydration}
           onStartDrink={onStartDrink}
+          breakEnabled={breakEnabled}
           blinkEnabled={blinkEnabled}
           hydrationEnabled={hydrationEnabled}
           drinkEnabled={drinkEnabled}

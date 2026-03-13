@@ -13,15 +13,51 @@ import os from 'os'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { optimizer, is } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 import { createStressMonitor } from './stressMonitor'
 import type {
+  ActivityPacingConfig,
   BlinkConfig,
+  BreakConfig,
   DrinkConfig,
   HydrationConfig,
   OverlayState,
   OverlayToast,
   StressSnapshot
 } from '../shared/monitor'
+
+const defaultBreakConfig: BreakConfig = {
+  enabled: true,
+  minMinutes: 45,
+  maxMinutes: 75,
+  durationSeconds: 60
+}
+
+const defaultBlinkConfig: BlinkConfig = {
+  enabled: true,
+  minMinutes: 15,
+  maxMinutes: 22,
+  durationSeconds: 8,
+  snoozeMinutes: 5
+}
+
+const defaultHydrationConfig: HydrationConfig = {
+  enabled: true,
+  intervalMinutes: 60,
+  durationSeconds: 30,
+  snoozeMinutes: 15
+}
+
+const defaultDrinkConfig: DrinkConfig = {
+  enabled: true,
+  intervalMinutes: 180,
+  durationSeconds: 30,
+  snoozeMinutes: 30
+}
+
+const defaultActivityPacingConfig: ActivityPacingConfig = {
+  minimumGapMinutes: 5
+}
 
 let mainWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
@@ -33,6 +69,7 @@ const APP_USER_MODEL_ID = 'Arokiyam'
 const QUIET_HOURS_START_HOUR = 22
 const QUIET_HOURS_END_HOUR = 7
 const WINDOWS_AUTO_START_ARGS = ['--auto-launch']
+const UPDATE_CHECK_INTERVAL_MS = 2 * 60 * 60 * 1000
 
 const getAutoStartStatus = (): boolean => {
   if (!app.isPackaged) return false
@@ -79,6 +116,11 @@ type AppPreferences = {
   notificationsEnabled: boolean
   quietHoursEnabled: boolean
   displayName: string
+  breakConfig: BreakConfig
+  blinkConfig: BlinkConfig
+  hydrationConfig: HydrationConfig
+  drinkConfig: DrinkConfig
+  activityPacingConfig: ActivityPacingConfig
 }
 
 const getDefaultDisplayName = (): string => {
@@ -95,7 +137,12 @@ const getDefaultDisplayName = (): string => {
 const defaultAppPreferences: AppPreferences = {
   notificationsEnabled: true,
   quietHoursEnabled: true,
-  displayName: getDefaultDisplayName()
+  displayName: getDefaultDisplayName(),
+  breakConfig: defaultBreakConfig,
+  blinkConfig: defaultBlinkConfig,
+  hydrationConfig: defaultHydrationConfig,
+  drinkConfig: defaultDrinkConfig,
+  activityPacingConfig: defaultActivityPacingConfig
 }
 
 const preferencesPath = join(app.getPath('userData'), 'preferences.json')
@@ -107,7 +154,27 @@ const readPreferences = (): AppPreferences => {
     const parsed = JSON.parse(raw) as Partial<AppPreferences>
     return {
       ...defaultAppPreferences,
-      ...parsed
+      ...parsed,
+      breakConfig: {
+        ...defaultAppPreferences.breakConfig,
+        ...parsed.breakConfig
+      },
+      blinkConfig: {
+        ...defaultAppPreferences.blinkConfig,
+        ...parsed.blinkConfig
+      },
+      hydrationConfig: {
+        ...defaultAppPreferences.hydrationConfig,
+        ...parsed.hydrationConfig
+      },
+      drinkConfig: {
+        ...defaultAppPreferences.drinkConfig,
+        ...parsed.drinkConfig
+      },
+      activityPacingConfig: {
+        ...defaultAppPreferences.activityPacingConfig,
+        ...parsed.activityPacingConfig
+      }
     }
   } catch {
     return defaultAppPreferences
@@ -249,6 +316,37 @@ const applyOverlayMode = (state: OverlayState): void => {
     overlayWindow.setFocusable(false)
     overlayWindow.showInactive()
   }
+}
+
+const setupAutoUpdates = (): void => {
+  if (!app.isPackaged) return
+
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('update-downloaded', () => {
+    if (!Notification.isSupported()) return
+    const notification = new Notification({
+      title: APP_DISPLAY_NAME,
+      body: 'A new version is ready and will be installed when you close the app.',
+      icon: getNotificationIcon()
+    })
+    notification.show()
+  })
+
+  autoUpdater.on('error', (error) => {
+    console.error('Auto update failed:', error)
+  })
+
+  void autoUpdater.checkForUpdates().catch((error) => {
+    console.error('Initial update check failed:', error)
+  })
+
+  setInterval(() => {
+    void autoUpdater.checkForUpdates().catch((error) => {
+      console.error('Scheduled update check failed:', error)
+    })
+  }, UPDATE_CHECK_INTERVAL_MS)
 }
 
 function createWindow(): void {
@@ -397,6 +495,11 @@ app.whenReady().then(() => {
   })
 
   stressMonitor = createStressMonitor()
+  stressMonitor.setBreakConfig(appPreferences.breakConfig)
+  stressMonitor.setBlinkConfig(appPreferences.blinkConfig)
+  stressMonitor.setHydrationConfig(appPreferences.hydrationConfig)
+  stressMonitor.setDrinkConfig(appPreferences.drinkConfig)
+  stressMonitor.setActivityPacingConfig(appPreferences.activityPacingConfig)
   let previousActivityMode: OverlayState['mode'] = 'normal'
 
   const broadcast = <T>(channel: string, payload: T): void => {
@@ -439,26 +542,48 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('stress:getSnapshot', () => stressMonitor?.getSnapshot() ?? getEmptySnapshot())
+  ipcMain.handle('break:setConfig', (_event, config: BreakConfig) => {
+    appPreferences = { ...appPreferences, breakConfig: { ...appPreferences.breakConfig, ...config } }
+    writePreferences(appPreferences)
+    stressMonitor?.setBreakConfig(appPreferences.breakConfig)
+  })
   ipcMain.handle('break:request', () => stressMonitor?.requestBreak())
   ipcMain.handle('break:skip', () => stressMonitor?.skipBreak())
   ipcMain.handle('blink:request', () => stressMonitor?.requestBlink())
-  ipcMain.handle('blink:setConfig', (_event, config: BlinkConfig) =>
-    stressMonitor?.setBlinkConfig(config)
-  )
+  ipcMain.handle('blink:setConfig', (_event, config: BlinkConfig) => {
+    appPreferences = { ...appPreferences, blinkConfig: { ...appPreferences.blinkConfig, ...config } }
+    writePreferences(appPreferences)
+    stressMonitor?.setBlinkConfig(appPreferences.blinkConfig)
+  })
   ipcMain.handle('blink:skip', () => stressMonitor?.skipBlink())
   ipcMain.handle('blink:snooze', () => stressMonitor?.snoozeBlink())
   ipcMain.handle('hydration:request', () => stressMonitor?.requestHydration())
-  ipcMain.handle('hydration:setConfig', (_event, config: HydrationConfig) =>
-    stressMonitor?.setHydrationConfig(config)
-  )
+  ipcMain.handle('hydration:setConfig', (_event, config: HydrationConfig) => {
+    appPreferences = {
+      ...appPreferences,
+      hydrationConfig: { ...appPreferences.hydrationConfig, ...config }
+    }
+    writePreferences(appPreferences)
+    stressMonitor?.setHydrationConfig(appPreferences.hydrationConfig)
+  })
   ipcMain.handle('hydration:complete', () => stressMonitor?.completeHydration())
   ipcMain.handle('hydration:snooze', () => stressMonitor?.snoozeHydration())
   ipcMain.handle('drink:request', () => stressMonitor?.requestDrink())
-  ipcMain.handle('drink:setConfig', (_event, config: DrinkConfig) =>
-    stressMonitor?.setDrinkConfig(config)
-  )
+  ipcMain.handle('drink:setConfig', (_event, config: DrinkConfig) => {
+    appPreferences = { ...appPreferences, drinkConfig: { ...appPreferences.drinkConfig, ...config } }
+    writePreferences(appPreferences)
+    stressMonitor?.setDrinkConfig(appPreferences.drinkConfig)
+  })
   ipcMain.handle('drink:complete', () => stressMonitor?.completeDrink())
   ipcMain.handle('drink:snooze', () => stressMonitor?.snoozeDrink())
+  ipcMain.handle('activity:setPacingConfig', (_event, config: ActivityPacingConfig) => {
+    appPreferences = {
+      ...appPreferences,
+      activityPacingConfig: { ...appPreferences.activityPacingConfig, ...config }
+    }
+    writePreferences(appPreferences)
+    stressMonitor?.setActivityPacingConfig(appPreferences.activityPacingConfig)
+  })
 
   ipcMain.handle('settings:getAutoStart', () => getAutoStartStatus())
   ipcMain.handle('settings:setAutoStart', (_event, enabled: boolean) => setAutoStartStatus(enabled))
@@ -497,6 +622,7 @@ app.whenReady().then(() => {
   createOverlayWindow()
   createTray()
   stressMonitor.start()
+  setupAutoUpdates()
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

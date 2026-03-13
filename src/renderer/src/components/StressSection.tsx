@@ -10,6 +10,7 @@ type StressSectionProps = {
   onStartBlink: () => void
   onStartHydration: () => void
   onStartDrink: () => void
+  breakEnabled: boolean
   blinkEnabled: boolean
   hydrationEnabled: boolean
   drinkEnabled: boolean
@@ -21,6 +22,7 @@ export const StressSection = ({
   onStartBlink,
   onStartHydration,
   onStartDrink,
+  breakEnabled,
   blinkEnabled,
   hydrationEnabled,
   drinkEnabled
@@ -36,6 +38,7 @@ export const StressSection = ({
         onStartBlink={onStartBlink}
         onStartHydration={onStartHydration}
         onStartDrink={onStartDrink}
+        breakEnabled={breakEnabled}
         blinkEnabled={blinkEnabled}
         hydrationEnabled={hydrationEnabled}
         drinkEnabled={drinkEnabled}

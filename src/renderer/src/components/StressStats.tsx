@@ -7,6 +7,7 @@ type StressStatsProps = {
   onStartBlink: () => void
   onStartHydration: () => void
   onStartDrink: () => void
+  breakEnabled: boolean
   blinkEnabled: boolean
   hydrationEnabled: boolean
   drinkEnabled: boolean
@@ -51,6 +52,7 @@ export const StressStats = ({
   onStartBlink,
   onStartHydration,
   onStartDrink,
+  breakEnabled,
   blinkEnabled,
   hydrationEnabled,
   drinkEnabled
@@ -61,9 +63,11 @@ export const StressStats = ({
     : snapshot.isBlinkActive
       ? { label: 'Blink ends in', time: snapshot.blinkEndsAt }
       : { label: 'Next blink', time: snapshot.nextBlinkAt }
-  const secondaryActivity = snapshot.isBreakActive
-    ? { label: 'Break ends in', time: snapshot.breakEndsAt }
-    : { label: 'Next break', time: snapshot.nextBreakAt }
+  const secondaryActivity = !breakEnabled
+    ? { label: 'Break disabled', time: null }
+    : snapshot.isBreakActive
+      ? { label: 'Break ends in', time: snapshot.breakEndsAt }
+      : { label: 'Next break', time: snapshot.nextBreakAt }
   const hydrationActivity = !hydrationEnabled
     ? { label: 'Hydration disabled', time: null }
     : snapshot.isHydrationActive
@@ -76,7 +80,7 @@ export const StressStats = ({
       : { label: 'Next drink', time: snapshot.nextDrinkAt }
   const scrollMinutes = Math.floor(snapshot.scrollingStreakMs / 60000)
 
-  const canStartBreak = !snapshot.isBreakActive
+  const canStartBreak = breakEnabled && !snapshot.isBreakActive
   const canStartBlink =
     blinkEnabled &&
     !snapshot.isBreakActive &&
@@ -150,14 +154,16 @@ export const StressStats = ({
                 disabled={!canStartBreak}
                 type="button"
               >
-                Break now
+                {breakEnabled ? 'Break now' : 'Disabled'}
               </button>
             </div>
             <p className="mt-2 text-2xl font-bold text-rose-900 dark:text-white">
               {getActivityTime(secondaryActivity.time)}
             </p>
             <p className="mt-1 text-xs font-semibold text-rose-700/80 dark:text-rose-200/90">
-              in {getActivityHumanTime(secondaryActivity.time)}
+              {breakEnabled
+                ? `in ${getActivityHumanTime(secondaryActivity.time)}`
+                : 'Enable in Preferences'}
             </p>
           </div>
           <div className="rounded-2xl border border-indigo-200/70 bg-linear-to-br from-indigo-100 to-sky-100 p-4 dark:border-indigo-500/30 dark:from-indigo-500/25 dark:to-sky-500/20">

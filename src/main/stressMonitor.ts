@@ -1,6 +1,8 @@
 import { uIOhook } from 'uiohook-napi'
 import type {
+  ActivityPacingConfig,
   BlinkConfig,
+  BreakConfig,
   DrinkConfig,
   HydrationConfig,
   OverlayState,
@@ -13,6 +15,7 @@ type Listener<T> = (payload: T) => void
 type StressMonitor = {
   start: () => void
   stop: () => void
+  setBreakConfig: (config: BreakConfig) => void
   requestBreak: () => void
   skipBreak: () => void
   requestBlink: () => void
@@ -27,6 +30,7 @@ type StressMonitor = {
   setDrinkConfig: (config: DrinkConfig) => void
   completeDrink: () => void
   snoozeDrink: () => void
+  setActivityPacingConfig: (config: ActivityPacingConfig) => void
   getSnapshot: () => StressSnapshot
   onUpdate: (listener: Listener<StressSnapshot>) => () => void
   onOverlayState: (listener: Listener<OverlayState>) => () => void
@@ -39,12 +43,19 @@ const clamp = (value: number, min: number, max: number): number =>
 const randomInRange = (min: number, max: number): number =>
   Math.floor(min + Math.random() * (max - min))
 
-const computeNextBreakMs = (stressLevel: number): number => {
-  const baseMin = 45 * 60 * 1000
-  const baseMax = 75 * 60 * 1000
-  const adjustedMin = clamp(baseMin - stressLevel * 10 * 60 * 1000, 25 * 60 * 1000, baseMin)
+const computeNextBreakMs = (config: BreakConfig, stressLevel: number): number => {
+  const baseMin = config.minMinutes * 60 * 1000
+  const baseMax = config.maxMinutes * 60 * 1000
+  const adjustedMin = clamp(baseMin - stressLevel * 10 * 60 * 1000, 20 * 60 * 1000, baseMin)
   const adjustedMax = clamp(baseMax - stressLevel * 20 * 60 * 1000, adjustedMin, baseMax)
   return randomInRange(adjustedMin, adjustedMax)
+}
+
+const defaultBreakConfig: BreakConfig = {
+  enabled: true,
+  minMinutes: 45,
+  maxMinutes: 75,
+  durationSeconds: 60
 }
 
 const defaultBlinkConfig: BlinkConfig = {
@@ -67,6 +78,23 @@ const defaultDrinkConfig: DrinkConfig = {
   intervalMinutes: 180,
   durationSeconds: 30,
   snoozeMinutes: 30
+}
+
+const defaultActivityPacingConfig: ActivityPacingConfig = {
+  minimumGapMinutes: 5
+}
+
+const clampBreakConfig = (config: BreakConfig): BreakConfig => {
+  const minMinutes = clamp(Math.round(config.minMinutes), 20, 180)
+  const maxMinutes = clamp(Math.round(config.maxMinutes), minMinutes, 240)
+  const durationSeconds = clamp(Math.round(config.durationSeconds), 20, 300)
+
+  return {
+    enabled: config.enabled,
+    minMinutes,
+    maxMinutes,
+    durationSeconds
+  }
 }
 
 const clampConfig = (config: BlinkConfig): BlinkConfig => {
@@ -110,6 +138,11 @@ const clampDrinkConfig = (config: DrinkConfig): DrinkConfig => {
   }
 }
 
+const clampActivityPacingConfig = (config: ActivityPacingConfig): ActivityPacingConfig => {
+  const minimumGapMinutes = clamp(Math.round(config.minimumGapMinutes), 1, 60)
+  return { minimumGapMinutes }
+}
+
 export const createStressMonitor = (): StressMonitor => {
   const updateListeners = new Set<Listener<StressSnapshot>>()
   const overlayListeners = new Set<Listener<OverlayState>>()
@@ -121,7 +154,8 @@ export const createStressMonitor = (): StressMonitor => {
   let totalMouseDistance = 0
   let energy = 100
   let lastBreakAt: number | null = null
-  let nextBreakAt = Date.now() + computeNextBreakMs(0)
+  let breakConfig = defaultBreakConfig
+  let nextBreakAt = Date.now() + computeNextBreakMs(defaultBreakConfig, 0)
   let breakEndsAt: number | null = null
   let isBreakActive = false
   let lastStressLevel = 0
@@ -144,6 +178,8 @@ export const createStressMonitor = (): StressMonitor => {
   let drinkEndsAt: number | null = null
   let isDrinkActive = false
   let lastDrinkAt: number | null = null
+  let activityPacingConfig = defaultActivityPacingConfig
+  let nextActivityAllowedAt = Date.now()
 
   let lastScrollAt: number | null = null
   let scrollStreakStart: number | null = null
@@ -238,8 +274,14 @@ export const createStressMonitor = (): StressMonitor => {
     toastListeners.forEach((listener) => listener(toast))
   }
 
-  const startBreak = (durationMs = 60_000): void => {
-    if (isBreakActive) return
+  const markActivityStarted = (): void => {
+    nextActivityAllowedAt = Date.now() + activityPacingConfig.minimumGapMinutes * 60 * 1000
+  }
+
+  const canStartAnotherActivity = (now = Date.now()): boolean => now >= nextActivityAllowedAt
+
+  const startBreak = (durationMs = breakConfig.durationSeconds * 1000): void => {
+    if (isBreakActive || !canStartAnotherActivity()) return
     if (isBlinkActive) {
       isBlinkActive = false
       blinkEndsAt = null
@@ -256,6 +298,7 @@ export const createStressMonitor = (): StressMonitor => {
     }
     isBreakActive = true
     breakEndsAt = Date.now() + durationMs
+    markActivityStarted()
     emitOverlayState()
   }
 
@@ -264,7 +307,7 @@ export const createStressMonitor = (): StressMonitor => {
     lastBreakAt = Date.now()
     breakEndsAt = null
     energy = 100
-    nextBreakAt = Date.now() + computeNextBreakMs(lastStressLevel)
+    nextBreakAt = Date.now() + computeNextBreakMs(breakConfig, lastStressLevel)
     scheduleNextBlink(Date.now())
     scheduleNextHydration(Date.now())
     scheduleNextDrink(Date.now())
@@ -277,11 +320,13 @@ export const createStressMonitor = (): StressMonitor => {
       isBreakActive ||
       isHydrationActive ||
       isDrinkActive ||
-      !blinkConfig.enabled
+      !blinkConfig.enabled ||
+      !canStartAnotherActivity()
     )
       return
     isBlinkActive = true
     blinkEndsAt = Date.now() + blinkConfig.durationSeconds * 1000
+    markActivityStarted()
     emitOverlayState()
   }
 
@@ -291,11 +336,13 @@ export const createStressMonitor = (): StressMonitor => {
       isBreakActive ||
       isBlinkActive ||
       isDrinkActive ||
-      !hydrationConfig.enabled
+      !hydrationConfig.enabled ||
+      !canStartAnotherActivity()
     )
       return
     isHydrationActive = true
     hydrationEndsAt = Date.now() + hydrationConfig.durationSeconds * 1000
+    markActivityStarted()
     emitOverlayState()
   }
 
@@ -305,11 +352,13 @@ export const createStressMonitor = (): StressMonitor => {
       isBreakActive ||
       isBlinkActive ||
       isHydrationActive ||
-      !drinkConfig.enabled
+      !drinkConfig.enabled ||
+      !canStartAnotherActivity()
     )
       return
     isDrinkActive = true
     drinkEndsAt = Date.now() + drinkConfig.durationSeconds * 1000
+    markActivityStarted()
     emitOverlayState()
   }
 
@@ -434,13 +483,19 @@ export const createStressMonitor = (): StressMonitor => {
       if (isDrinkActive && drinkEndsAt && now >= drinkEndsAt) {
         finishDrink(true)
       }
-      if (!isBreakActive && !isBlinkActive && now >= nextBreakAt) {
-        startBreak(60_000)
+      if (!isBreakActive && !isBlinkActive && breakConfig.enabled && now >= nextBreakAt) {
+        startBreak(breakConfig.durationSeconds * 1000)
       }
       if (isBlinkActive && blinkEndsAt && now >= blinkEndsAt) {
         finishBlink()
       }
-      if (!isBreakActive && !isBlinkActive && !isHydrationActive && now >= nextBlinkAt) {
+      if (
+        !isBreakActive &&
+        !isBlinkActive &&
+        !isHydrationActive &&
+        blinkConfig.enabled &&
+        now >= nextBlinkAt
+      ) {
         startBlink()
       }
       if (
@@ -448,6 +503,7 @@ export const createStressMonitor = (): StressMonitor => {
         !isBlinkActive &&
         !isHydrationActive &&
         !isDrinkActive &&
+        hydrationConfig.enabled &&
         now >= nextHydrationAt
       ) {
         startHydration()
@@ -457,6 +513,7 @@ export const createStressMonitor = (): StressMonitor => {
         !isBlinkActive &&
         !isHydrationActive &&
         !isDrinkActive &&
+        drinkConfig.enabled &&
         now >= nextDrinkAt
       ) {
         startDrink()
@@ -474,7 +531,7 @@ export const createStressMonitor = (): StressMonitor => {
   }
 
   const requestBreak = (): void => {
-    startBreak(60_000)
+    startBreak(breakConfig.durationSeconds * 1000)
     emitSnapshot()
   }
 
@@ -497,6 +554,20 @@ export const createStressMonitor = (): StressMonitor => {
   const requestDrink = (): void => {
     startDrink()
     emitSnapshot()
+  }
+
+  const setBreakConfig = (config: BreakConfig): void => {
+    breakConfig = clampBreakConfig(config)
+    if (!breakConfig.enabled) {
+      if (isBreakActive) {
+        isBreakActive = false
+        breakEndsAt = null
+        emitOverlayState()
+      }
+      nextBreakAt = Date.now() + 24 * 60 * 60 * 1000
+      return
+    }
+    nextBreakAt = Date.now() + computeNextBreakMs(breakConfig, lastStressLevel)
   }
 
   const setBlinkConfig = (config: BlinkConfig): void => {
@@ -535,6 +606,10 @@ export const createStressMonitor = (): StressMonitor => {
       return
     }
     scheduleNextDrink(Date.now())
+  }
+
+  const setActivityPacingConfig = (config: ActivityPacingConfig): void => {
+    activityPacingConfig = clampActivityPacingConfig(config)
   }
 
   const skipBlink = (): void => {
@@ -620,6 +695,7 @@ export const createStressMonitor = (): StressMonitor => {
   return {
     start,
     stop,
+    setBreakConfig,
     requestBreak,
     skipBreak,
     requestBlink,
@@ -634,6 +710,7 @@ export const createStressMonitor = (): StressMonitor => {
     setDrinkConfig,
     completeDrink,
     snoozeDrink,
+    setActivityPacingConfig,
     getSnapshot,
     onUpdate,
     onOverlayState,

@@ -39,6 +39,13 @@ export type BlinkConfig = {
   snoozeMinutes: number
 }
 
+export type BreakConfig = {
+  enabled: boolean
+  minMinutes: number
+  maxMinutes: number
+  durationSeconds: number
+}
+
 export type HydrationConfig = {
   enabled: boolean
   intervalMinutes: number
@@ -51,6 +58,10 @@ export type DrinkConfig = {
   intervalMinutes: number
   durationSeconds: number
   snoozeMinutes: number
+}
+
+export type ActivityPacingConfig = {
+  minimumGapMinutes: number
 }
 
 export type OverlayToast = {

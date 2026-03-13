@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
+  ActivityPacingConfig,
   BlinkConfig,
+  BreakConfig,
   DrinkConfig,
   HydrationConfig,
   OverlayState,
@@ -19,12 +21,15 @@ const api = {
     ipcRenderer.invoke('settings:getNotificationsEnabled') as Promise<boolean>,
   setNotificationsEnabled: (enabled: boolean) =>
     ipcRenderer.invoke('settings:setNotificationsEnabled', enabled) as Promise<boolean>,
-  getQuietHoursEnabled: () => ipcRenderer.invoke('settings:getQuietHoursEnabled') as Promise<boolean>,
+  getQuietHoursEnabled: () =>
+    ipcRenderer.invoke('settings:getQuietHoursEnabled') as Promise<boolean>,
   setQuietHoursEnabled: (enabled: boolean) =>
     ipcRenderer.invoke('settings:setQuietHoursEnabled', enabled) as Promise<boolean>,
   getDisplayName: () => ipcRenderer.invoke('settings:getDisplayName') as Promise<string>,
-  setDisplayName: (name: string) => ipcRenderer.invoke('settings:setDisplayName', name) as Promise<string>,
+  setDisplayName: (name: string) =>
+    ipcRenderer.invoke('settings:setDisplayName', name) as Promise<string>,
   getStressSnapshot: () => ipcRenderer.invoke('stress:getSnapshot') as Promise<StressSnapshot>,
+  setBreakConfig: (config: BreakConfig) => ipcRenderer.invoke('break:setConfig', config),
   requestBreak: () => ipcRenderer.invoke('break:request') as Promise<void>,
   skipBreak: () => ipcRenderer.invoke('break:skip') as Promise<void>,
   requestBlink: () => ipcRenderer.invoke('blink:request') as Promise<void>,
@@ -40,6 +45,8 @@ const api = {
   setDrinkConfig: (config: DrinkConfig) => ipcRenderer.invoke('drink:setConfig', config),
   completeDrink: () => ipcRenderer.invoke('drink:complete') as Promise<void>,
   snoozeDrink: () => ipcRenderer.invoke('drink:snooze') as Promise<void>,
+  setActivityPacingConfig: (config: ActivityPacingConfig) =>
+    ipcRenderer.invoke('activity:setPacingConfig', config),
   onStressUpdate: (callback: (snapshot: StressSnapshot) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, snapshot: StressSnapshot): void => {
       callback(snapshot)
