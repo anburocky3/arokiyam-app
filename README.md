@@ -23,7 +23,6 @@ Latest stable release: **v1.0.6**
 - Windows (Installer): [Download](https://github.com/anburocky3/arokiyam-app/releases/download/v1.0.6/arokiyam-1.0.6-setup.exe)
 - macOS (DMG): [Download](https://github.com/anburocky3/arokiyam-app/releases/download/v1.0.6/arokiyam-1.0.6.dmg)
 - Linux (AppImage): [Download](https://github.com/anburocky3/arokiyam-app/releases/download/v1.0.6/arokiyam-1.0.6.AppImage)
-- Linux (DEB): [Download](https://github.com/anburocky3/arokiyam-app/releases/download/v1.0.6/arokiyam-1.0.6-amd64.deb)
 
 <!-- DOWNLOAD_LINKS_END -->
 
@@ -109,7 +108,7 @@ bun run build:win
 # macOS
 bun run build:mac
 
-# Linux (AppImage + DEB)
+# Linux (AppImage)
 bun run build:linux
 ```
 
@@ -125,7 +124,6 @@ The project uses GitHub Actions to build and publish release assets.
   - `*-setup.exe`
   - `*.dmg`
   - `*.AppImage`
-  - `*.deb`
 - Automatically refreshes README download links after release.
 
 ### Version And Tag Commands

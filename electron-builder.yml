@@ -40,11 +40,8 @@ linux:
   icon: build/icons/512x512.png
   target:
     - AppImage
-    - deb
   maintainer: electronjs.org
   category: Utility
-deb:
-  artifactName: ${name}-${version}-${arch}.${ext}
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
