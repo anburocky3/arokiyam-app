@@ -22,6 +22,8 @@ type OverlayViewState = {
 type HealthStrictness = 'basic' | 'medium' | 'strict'
 
 const HEALTH_STRICTNESS_KEY = 'arokiyam-health-strictness'
+const BREATH_CYCLE_MS = 12_000
+const BREATH_RELEASE_START_MS = 8_000
 
 const getStoredHealthStrictness = (): HealthStrictness => {
   const stored = window.localStorage.getItem(HEALTH_STRICTNESS_KEY)
@@ -120,6 +122,12 @@ export const OverlayApp = (): React.JSX.Element => {
   const actionFadeClass = 'opacity-80 transition-opacity hover:opacity-100'
   const skipUnlockIn = skipUnlockAt ? Math.max(0, Math.ceil((skipUnlockAt - now) / 1000)) : 0
   const showSkipCountdown = showSkipOrSnooze && !canSkipOrSnooze && skipUnlockIn > 0
+  const breakPhase: 'inhale' | 'exhale' = useMemo(() => {
+    if (!isBreakMode || !modeStartAt) return 'inhale'
+    const elapsedInCycle = (now - modeStartAt) % BREATH_CYCLE_MS
+    return elapsedInCycle >= BREATH_RELEASE_START_MS ? 'exhale' : 'inhale'
+  }, [isBreakMode, modeStartAt, now])
+  const breakInstruction = breakPhase === 'exhale' ? 'Release it now' : 'Take a breath'
 
   let overlayClass = 'bg-transparent text-white'
   if (isBreakMode || isBlinkMode) {
@@ -203,7 +211,13 @@ export const OverlayApp = (): React.JSX.Element => {
             <div className="h-16 w-16 rounded-full bg-white/90 shadow-[0_0_25px_rgba(255,255,255,0.4)] animate-breath" />
           </div>
           <div className="space-y-2">
-            <p className="text-sm text-white/70">Deep breath sync</p>
+            <p
+              className={`text-sm font-medium tracking-wide text-white/80 transition-all duration-500 ${
+                breakPhase === 'exhale' ? 'scale-105 text-amber-200' : 'scale-100 text-cyan-100'
+              }`}
+            >
+              {breakInstruction}
+            </p>
             <p className="text-3xl font-semibold">{countdown}</p>
           </div>
           {showEligibleControls && (

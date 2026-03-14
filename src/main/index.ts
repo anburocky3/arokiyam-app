@@ -65,6 +65,7 @@ let overlayWindow: BrowserWindow | null = null
 let stressMonitor: ReturnType<typeof createStressMonitor> | null = null
 let tray: Tray | null = null
 let isQuitting = false
+let updateReadyToInstall = false
 const APP_DISPLAY_NAME = 'Arokiyam'
 const APP_USER_MODEL_ID = 'Arokiyam'
 const QUIET_HOURS_START_HOUR = 22
@@ -107,10 +108,13 @@ const setAutoStartStatus = (enabled: boolean): boolean => {
       })
     }
   } else {
-    app.setLoginItemSettings({ openAtLogin: enabled })
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      openAsHidden: enabled
+    })
   }
 
-  return app.getLoginItemSettings().openAtLogin
+  return getAutoStartStatus()
 }
 
 type AppPreferences = {
@@ -353,7 +357,12 @@ const setupAutoUpdates = (): void => {
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
 
+  autoUpdater.on('update-available', () => {
+    updateReadyToInstall = false
+  })
+
   autoUpdater.on('update-downloaded', () => {
+    updateReadyToInstall = true
     if (!Notification.isSupported()) return
     const notification = new Notification({
       title: APP_DISPLAY_NAME,
@@ -526,6 +535,13 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('app:getBuildInfo', () => {
+    return {
+      version: app.getVersion(),
+      channel: app.isPackaged ? 'production' : 'development'
+    }
+  })
+
   stressMonitor = createStressMonitor()
   stressMonitor.setBreakConfig(appPreferences.breakConfig)
   stressMonitor.setBlinkConfig(appPreferences.blinkConfig)
@@ -659,12 +675,80 @@ app.whenReady().then(() => {
     return appPreferences.displayName
   })
 
+  ipcMain.handle('update:state', () => {
+    return {
+      packaged: app.isPackaged,
+      updateReady: updateReadyToInstall
+    }
+  })
+
+  ipcMain.handle('update:check', async () => {
+    if (!app.isPackaged) {
+      return {
+        updateReady: false,
+        message: 'Manual update check is available only in installed builds.'
+      }
+    }
+
+    try {
+      const result = await autoUpdater.checkForUpdates()
+      if (updateReadyToInstall) {
+        return {
+          updateReady: true,
+          message: 'Update is already downloaded. Click restart to install.'
+        }
+      }
+
+      if (result?.updateInfo?.version) {
+        return {
+          updateReady: false,
+          message: `Update ${result.updateInfo.version} found. Downloading in background...`
+        }
+      }
+
+      return {
+        updateReady: false,
+        message: 'You are on the latest version.'
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return {
+        updateReady: updateReadyToInstall,
+        message: `Update check failed: ${message}`
+      }
+    }
+  })
+
+  ipcMain.handle('update:install', () => {
+    if (!app.isPackaged) {
+      return {
+        started: false,
+        message: 'Update install is available only in installed builds.'
+      }
+    }
+
+    if (!updateReadyToInstall) {
+      return {
+        started: false,
+        message: 'No downloaded update yet. Check for updates first.'
+      }
+    }
+
+    setImmediate(() => {
+      autoUpdater.quitAndInstall()
+    })
+
+    return {
+      started: true,
+      message: 'Installing update. The app will restart now.'
+    }
+  })
+
   createWindow()
   createOverlayWindow()
   createTray()
-  if (ensureMacInputPermission(appPreferences)) {
-    stressMonitor.start()
-  }
+  ensureMacInputPermission(appPreferences)
+  stressMonitor.start()
   setupAutoUpdates()
 
   app.on('activate', function () {

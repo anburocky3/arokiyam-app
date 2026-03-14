@@ -14,6 +14,11 @@ import type {
 // Custom APIs for renderer
 const api = {
   getSystemInfo: () => ipcRenderer.invoke('system:getInfo'),
+  getAppBuildInfo: () =>
+    ipcRenderer.invoke('app:getBuildInfo') as Promise<{
+      version: string
+      channel: 'development' | 'production'
+    }>,
   getAutoStart: () => ipcRenderer.invoke('settings:getAutoStart') as Promise<boolean>,
   setAutoStart: (enabled: boolean) =>
     ipcRenderer.invoke('settings:setAutoStart', enabled) as Promise<boolean>,
@@ -28,6 +33,12 @@ const api = {
   getDisplayName: () => ipcRenderer.invoke('settings:getDisplayName') as Promise<string>,
   setDisplayName: (name: string) =>
     ipcRenderer.invoke('settings:setDisplayName', name) as Promise<string>,
+  getUpdateState: () =>
+    ipcRenderer.invoke('update:state') as Promise<{ packaged: boolean; updateReady: boolean }>,
+  checkForUpdates: () =>
+    ipcRenderer.invoke('update:check') as Promise<{ updateReady: boolean; message: string }>,
+  installUpdateNow: () =>
+    ipcRenderer.invoke('update:install') as Promise<{ started: boolean; message: string }>,
   getStressSnapshot: () => ipcRenderer.invoke('stress:getSnapshot') as Promise<StressSnapshot>,
   setBreakConfig: (config: BreakConfig) => ipcRenderer.invoke('break:setConfig', config),
   requestBreak: () => ipcRenderer.invoke('break:request') as Promise<void>,
