@@ -66,6 +66,20 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Validate tag matches package version
+        shell: bash
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${RELEASE_TAG#v}"
+
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "Tag and package.json version mismatch"
+            echo "release tag: $RELEASE_TAG"
+            echo "package version: $PKG_VERSION"
+            echo "Push a tag that matches package.json (or move the tag to the correct commit)."
+            exit 1
+          fi
+
       - name: Fix app-builder permissions on Linux
         if: runner.os == 'Linux'
         run: chmod +x node_modules/app-builder-bin/linux/x64/app-builder

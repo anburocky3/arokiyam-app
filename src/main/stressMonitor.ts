@@ -187,6 +187,7 @@ export const createStressMonitor = (): StressMonitor => {
 
   let statsInterval: NodeJS.Timeout | null = null
   let breakInterval: NodeJS.Timeout | null = null
+  let inputHookStarted = false
 
   const pruneEvents = (cutoff: number): void => {
     while (keyEvents.length && keyEvents[0] < cutoff) keyEvents.shift()
@@ -280,8 +281,11 @@ export const createStressMonitor = (): StressMonitor => {
 
   const canStartAnotherActivity = (now = Date.now()): boolean => now >= nextActivityAllowedAt
 
-  const startBreak = (durationMs = breakConfig.durationSeconds * 1000): void => {
-    if (isBreakActive || !canStartAnotherActivity()) return
+  const startBreak = (
+    durationMs = breakConfig.durationSeconds * 1000,
+    ignorePacing = false
+  ): void => {
+    if (isBreakActive || (!ignorePacing && !canStartAnotherActivity())) return
     if (isBlinkActive) {
       isBlinkActive = false
       blinkEndsAt = null
@@ -314,14 +318,14 @@ export const createStressMonitor = (): StressMonitor => {
     emitOverlayState()
   }
 
-  const startBlink = (): void => {
+  const startBlink = (ignorePacing = false): void => {
     if (
       isBlinkActive ||
       isBreakActive ||
       isHydrationActive ||
       isDrinkActive ||
       !blinkConfig.enabled ||
-      !canStartAnotherActivity()
+      (!ignorePacing && !canStartAnotherActivity())
     )
       return
     isBlinkActive = true
@@ -330,14 +334,14 @@ export const createStressMonitor = (): StressMonitor => {
     emitOverlayState()
   }
 
-  const startHydration = (): void => {
+  const startHydration = (ignorePacing = false): void => {
     if (
       isHydrationActive ||
       isBreakActive ||
       isBlinkActive ||
       isDrinkActive ||
       !hydrationConfig.enabled ||
-      !canStartAnotherActivity()
+      (!ignorePacing && !canStartAnotherActivity())
     )
       return
     isHydrationActive = true
@@ -346,14 +350,14 @@ export const createStressMonitor = (): StressMonitor => {
     emitOverlayState()
   }
 
-  const startDrink = (): void => {
+  const startDrink = (ignorePacing = false): void => {
     if (
       isDrinkActive ||
       isBreakActive ||
       isBlinkActive ||
       isHydrationActive ||
       !drinkConfig.enabled ||
-      !canStartAnotherActivity()
+      (!ignorePacing && !canStartAnotherActivity())
     )
       return
     isDrinkActive = true
@@ -441,35 +445,41 @@ export const createStressMonitor = (): StressMonitor => {
   }
 
   const start = (): void => {
-    uIOhook.on('keydown', () => {
-      keyEvents.push(Date.now())
-    })
+    try {
+      uIOhook.on('keydown', () => {
+        keyEvents.push(Date.now())
+      })
 
-    uIOhook.on('mousemove', (event) => {
-      if (!('x' in event) || !('y' in event)) return
-      const position = event as { x: number; y: number }
-      if (lastMousePosition) {
-        const distance = Math.hypot(
-          position.x - lastMousePosition.x,
-          position.y - lastMousePosition.y
-        )
-        if (Number.isFinite(distance)) {
-          totalMouseDistance += distance
-          mouseEvents.push({ t: Date.now(), d: distance })
+      uIOhook.on('mousemove', (event) => {
+        if (!('x' in event) || !('y' in event)) return
+        const position = event as { x: number; y: number }
+        if (lastMousePosition) {
+          const distance = Math.hypot(
+            position.x - lastMousePosition.x,
+            position.y - lastMousePosition.y
+          )
+          if (Number.isFinite(distance)) {
+            totalMouseDistance += distance
+            mouseEvents.push({ t: Date.now(), d: distance })
+          }
         }
-      }
-      lastMousePosition = { x: position.x, y: position.y }
-    })
+        lastMousePosition = { x: position.x, y: position.y }
+      })
 
-    uIOhook.on('mousewheel', () => {
-      const now = Date.now()
-      if (!scrollStreakStart || !lastScrollAt || now - lastScrollAt > 20_000) {
-        scrollStreakStart = now
-      }
-      lastScrollAt = now
-    })
+      uIOhook.on('mousewheel', () => {
+        const now = Date.now()
+        if (!scrollStreakStart || !lastScrollAt || now - lastScrollAt > 20_000) {
+          scrollStreakStart = now
+        }
+        lastScrollAt = now
+      })
 
-    uIOhook.start()
+      uIOhook.start()
+      inputHookStarted = true
+    } catch (error) {
+      inputHookStarted = false
+      console.error('Global input hook unavailable; continuing without activity tracking.', error)
+    }
 
     statsInterval = setInterval(emitSnapshot, 10_000)
     breakInterval = setInterval(() => {
@@ -525,13 +535,19 @@ export const createStressMonitor = (): StressMonitor => {
   }
 
   const stop = (): void => {
-    uIOhook.stop()
+    if (inputHookStarted) {
+      try {
+        uIOhook.stop()
+      } catch (error) {
+        console.error('Failed to stop global input hook cleanly.', error)
+      }
+    }
     if (statsInterval) clearInterval(statsInterval)
     if (breakInterval) clearInterval(breakInterval)
   }
 
   const requestBreak = (): void => {
-    startBreak(breakConfig.durationSeconds * 1000)
+    startBreak(breakConfig.durationSeconds * 1000, true)
     emitSnapshot()
   }
 
@@ -542,17 +558,17 @@ export const createStressMonitor = (): StressMonitor => {
   }
 
   const requestBlink = (): void => {
-    startBlink()
+    startBlink(true)
     emitSnapshot()
   }
 
   const requestHydration = (): void => {
-    startHydration()
+    startHydration(true)
     emitSnapshot()
   }
 
   const requestDrink = (): void => {
-    startDrink()
+    startDrink(true)
     emitSnapshot()
   }
 

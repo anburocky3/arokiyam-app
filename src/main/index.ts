@@ -7,7 +7,8 @@ import {
   Menu,
   Tray,
   nativeImage,
-  Notification
+  Notification,
+  systemPreferences
 } from 'electron'
 import os from 'os'
 import { join } from 'path'
@@ -208,6 +209,30 @@ const shouldShowReminder = (preferences: AppPreferences): boolean => {
   return true
 }
 
+const ensureMacInputPermission = (preferences: AppPreferences): boolean => {
+  if (process.platform !== 'darwin') return true
+
+  const trusted = systemPreferences.isTrustedAccessibilityClient(false)
+  if (trusted) return true
+
+  // Ask macOS to show the accessibility prompt and route user to privacy settings.
+  systemPreferences.isTrustedAccessibilityClient(true)
+  void shell.openExternal(
+    'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+  )
+
+  if (shouldShowNotification(preferences)) {
+    const notification = new Notification({
+      title: APP_DISPLAY_NAME,
+      body: 'Enable Accessibility and Input Monitoring for Arokiyam, then reopen the app.',
+      icon: getNotificationIcon()
+    })
+    notification.show()
+  }
+
+  return false
+}
+
 const getEmptySnapshot = (): StressSnapshot => ({
   kpm: 0,
   mouseDistancePerMin: 0,
@@ -307,9 +332,13 @@ const applyOverlayMode = (state: OverlayState): void => {
     state.mode === 'hydration' ||
     state.mode === 'drink'
   ) {
+    const { bounds } = screen.getPrimaryDisplay()
+    overlayWindow.setBounds(bounds)
     overlayWindow.setIgnoreMouseEvents(false)
     overlayWindow.setFocusable(true)
+    overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1)
     overlayWindow.show()
+    overlayWindow.moveTop()
     overlayWindow.focus()
   } else {
     overlayWindow.setIgnoreMouseEvents(true, { forward: true })
@@ -400,9 +429,11 @@ function createWindow(): void {
 }
 
 function createOverlayWindow(): void {
-  const { width, height } = screen.getPrimaryDisplay().bounds
+  const { x, y, width, height } = screen.getPrimaryDisplay().bounds
   overlayWindow = new BrowserWindow({
     title: 'Arokiyam Overlay',
+    x,
+    y,
     width,
     height,
     transparent: true,
@@ -410,7 +441,8 @@ function createOverlayWindow(): void {
     show: false,
     resizable: false,
     movable: false,
-    fullscreen: true,
+    fullscreen: process.platform !== 'darwin',
+    fullscreenable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
     hasShadow: false,
@@ -543,7 +575,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('stress:getSnapshot', () => stressMonitor?.getSnapshot() ?? getEmptySnapshot())
   ipcMain.handle('break:setConfig', (_event, config: BreakConfig) => {
-    appPreferences = { ...appPreferences, breakConfig: { ...appPreferences.breakConfig, ...config } }
+    appPreferences = {
+      ...appPreferences,
+      breakConfig: { ...appPreferences.breakConfig, ...config }
+    }
     writePreferences(appPreferences)
     stressMonitor?.setBreakConfig(appPreferences.breakConfig)
   })
@@ -551,7 +586,10 @@ app.whenReady().then(() => {
   ipcMain.handle('break:skip', () => stressMonitor?.skipBreak())
   ipcMain.handle('blink:request', () => stressMonitor?.requestBlink())
   ipcMain.handle('blink:setConfig', (_event, config: BlinkConfig) => {
-    appPreferences = { ...appPreferences, blinkConfig: { ...appPreferences.blinkConfig, ...config } }
+    appPreferences = {
+      ...appPreferences,
+      blinkConfig: { ...appPreferences.blinkConfig, ...config }
+    }
     writePreferences(appPreferences)
     stressMonitor?.setBlinkConfig(appPreferences.blinkConfig)
   })
@@ -570,7 +608,10 @@ app.whenReady().then(() => {
   ipcMain.handle('hydration:snooze', () => stressMonitor?.snoozeHydration())
   ipcMain.handle('drink:request', () => stressMonitor?.requestDrink())
   ipcMain.handle('drink:setConfig', (_event, config: DrinkConfig) => {
-    appPreferences = { ...appPreferences, drinkConfig: { ...appPreferences.drinkConfig, ...config } }
+    appPreferences = {
+      ...appPreferences,
+      drinkConfig: { ...appPreferences.drinkConfig, ...config }
+    }
     writePreferences(appPreferences)
     stressMonitor?.setDrinkConfig(appPreferences.drinkConfig)
   })
@@ -621,7 +662,9 @@ app.whenReady().then(() => {
   createWindow()
   createOverlayWindow()
   createTray()
-  stressMonitor.start()
+  if (ensureMacInputPermission(appPreferences)) {
+    stressMonitor.start()
+  }
   setupAutoUpdates()
 
   app.on('activate', function () {
