@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feat/landing-page
     paths:
       - 'landing/**'
       - '.github/workflows/deploy-landing-vercel.yml'
@@ -16,39 +15,29 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ !contains(github.event.head_commit.message, '[skip-vercel]') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip-vercel]') }}
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node
+        uses: actions/setup-node@v5
         with:
-          bun-version: latest
+          node-version: 20
 
-      - name: Install landing dependencies
-        run: bun install --frozen-lockfile
-        working-directory: landing
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
 
-      - name: Pull Vercel environment
-        run: bunx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-        working-directory: landing
+      - name: Pull Vercel project settings
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Build landing
-        run: bunx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-        working-directory: landing
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Deploy prebuilt output
-        run: bunx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
-        working-directory: landing
+      - name: Deploy landing to production
+        run: vercel deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
