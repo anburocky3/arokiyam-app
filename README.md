@@ -18,11 +18,11 @@ It tracks activity stress signals, prompts healthy breaks, and uses guided overl
 
 <!-- DOWNLOAD_LINKS_START -->
 
-Latest stable release: **v1.0.6**
+Latest stable release: **v1.0.9**
 
-- Windows (Installer): [Download](https://github.com/anburocky3/arokiyam-app/releases/download/v1.0.6/arokiyam-1.0.6-setup.exe)
-- macOS (DMG): [Download](https://github.com/anburocky3/arokiyam-app/releases/download/v1.0.6/arokiyam-1.0.6.dmg)
-- Linux (AppImage): [Download](https://github.com/anburocky3/arokiyam-app/releases/download/v1.0.6/arokiyam-1.0.6.AppImage)
+- Windows (Installer): [Download](https://github.com/anburocky3/arokiyam-app/releases/download/v1.0.9/arokiyam-1.0.9-setup.exe)
+- macOS (DMG): [Download](https://github.com/anburocky3/arokiyam-app/releases/download/v1.0.9/arokiyam-1.0.9.dmg)
+- Linux (AppImage): [Download](https://github.com/anburocky3/arokiyam-app/releases/download/v1.0.9/arokiyam-1.0.9.AppImage)
 
 <!-- DOWNLOAD_LINKS_END -->
 
