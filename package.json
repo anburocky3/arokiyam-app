@@ -27,7 +27,10 @@
     "release": "bun scripts/release.ts",
     "release:patch": "bun scripts/release.ts patch",
     "release:minor": "bun scripts/release.ts minor",
-    "release:major": "bun scripts/release.ts major"
+    "release:major": "bun scripts/release.ts major",
+    "dev:landing": "bun --cwd landing dev",
+    "build:landing": "bun --cwd landing build",
+    "start:landing": "bun --cwd landing start"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
