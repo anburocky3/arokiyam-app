@@ -3,6 +3,7 @@ productName: Arokiyam
 electronLanguages:
   - en-US
 afterPack: build/afterPack.mjs
+afterSign: build/afterSign.mjs
 directories:
   buildResources: build
 files:
@@ -27,6 +28,7 @@ nsis:
   createDesktopShortcut: always
 mac:
   icon: build/icons/icon.icns
+  identity: '-'
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
