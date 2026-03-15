@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 const previewImages = [
   { id: 1, title: 'App Dashboard', image: '/previewImages/1.png' },
@@ -10,7 +11,25 @@ const previewImages = [
 ];
 
 export default function Screenshots() {
-  const [activeTab, setActiveTab] = useState(previewImages[0]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    if (isHovered) return;
+    
+    const timer = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % previewImages.length);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [isHovered]);
+
+  const handlePrev = () => {
+    setActiveIndex((prev) => (prev - 1 + previewImages.length) % previewImages.length);
+  };
+
+  const handleNext = () => {
+    setActiveIndex((prev) => (prev + 1) % previewImages.length);
+  };
 
   return (
     <section className="relative py-[100px] md:py-[80px] overflow-hidden" id="preview">
@@ -30,12 +49,12 @@ export default function Screenshots() {
 
         {/* Tab Selectors */}
         <div className="flex flex-wrap justify-center gap-3 mb-12 fade-in fade-in-delay-2 relative z-20">
-          {previewImages.map((tab) => {
-            const isActive = activeTab.id === tab.id;
+          {previewImages.map((tab, idx) => {
+            const isActive = activeIndex === idx;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => setActiveIndex(idx)}
                 className="px-5 py-[10px] rounded-full text-[0.85rem] font-medium transition-all duration-300"
                 style={{
                   background: isActive ? 'var(--gradient-primary)' : 'var(--bg-glass)',
@@ -60,24 +79,44 @@ export default function Screenshots() {
             }}
           >
             {/* Camera Dot */}
-            <div className="absolute top-[8px] md:top-[12px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#1a1a24] shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] z-20"></div>
+            <div className="absolute top-[8px] md:top-[3] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#1a1a24] shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] z-20"></div>
 
             {/* Screen Container */}
-            <div className="relative w-full flex-grow bg-[#0a0a0f] rounded-[8px] md:rounded-xl overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] border border-[rgba(255,255,255,0.03)]">
-              {previewImages.map((shot) => (
+            <div 
+              className="relative w-full flex-grow bg-[#0a0a0f] rounded-[8px] md:rounded-xl overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] border border-[rgba(255,255,255,0.03)] group"
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+            >
+              {previewImages.map((shot, idx) => (
                 <img
                   key={shot.id}
                   src={shot.image}
                   alt={shot.title}
                   className="absolute inset-0 w-full h-full object-contain md:object-cover object-top transition-opacity duration-500 ease-in-out"
                   style={{
-                    opacity: activeTab.id === shot.id ? 1 : 0,
-                    pointerEvents: activeTab.id === shot.id ? 'auto' : 'none',
-                    filter: activeTab.id === shot.id ? 'none' : 'blur(4px)',
-                    transform: activeTab.id === shot.id ? 'scale(1)' : 'scale(1.02)',
+                    opacity: activeIndex === idx ? 1 : 0,
+                    pointerEvents: activeIndex === idx ? 'auto' : 'none',
+                    filter: activeIndex === idx ? 'none' : 'blur(4px)',
+                    transform: activeIndex === idx ? 'scale(1)' : 'scale(1.02)',
                   }}
                 />
               ))}
+
+              {/* Navigation Arrows */}
+              {/* <button
+                onClick={handlePrev}
+                aria-label="Previous image"
+                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white/70 hover:bg-black/80 hover:text-white backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 z-30"
+              >
+                <FiChevronLeft size={24} />
+              </button>
+              <button
+                onClick={handleNext}
+                aria-label="Next image"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 text-white/70 hover:bg-black/80 hover:text-white backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 z-30"
+              >
+                <FiChevronRight size={24} />
+              </button> */}
             </div>
           </div>
 

@@ -4,12 +4,16 @@ import { FiSun, FiMoon, FiGithub } from 'react-icons/fi';
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem('arokiyam-theme') || 'dark';
+  const [theme, setTheme] = useState('dark');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const storedTheme = localStorage.getItem('arokiyam-theme');
+    if (storedTheme) {
+      setTheme(storedTheme);
     }
-    return 'dark';
-  });
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 40);
@@ -18,9 +22,11 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('arokiyam-theme', theme);
-  }, [theme]);
+    if (mounted) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('arokiyam-theme', theme);
+    }
+  }, [theme, mounted]);
 
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
@@ -63,8 +69,8 @@ export default function Navbar() {
                   href={link.href}
                   className="text-[0.88rem] font-medium transition-all duration-300"
                   style={{ color: 'var(--text-secondary)' }}
-                  onMouseEnter={e => e.target.style.color = 'var(--text-primary)'}
-                  onMouseLeave={e => e.target.style.color = 'var(--text-secondary)'}
+                  onMouseEnter={e => (e.target as HTMLElement).style.color = 'var(--text-primary)'}
+                  onMouseLeave={e => (e.target as HTMLElement).style.color = 'var(--text-secondary)'}
                 >
                   {link.label}
                 </a>
@@ -72,9 +78,9 @@ export default function Navbar() {
             ))}
           </ul>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">
-              {theme === 'dark' ? <FiSun size={18} /> : <FiMoon size={18} />}
+              {mounted ? (theme === 'dark' ? <FiSun size={18} /> : <FiMoon size={18} />) : <FiSun size={18} />}
             </button>
             <a
               href="https://github.com/anburocky3/arokiyam-app/fork"
@@ -85,17 +91,16 @@ export default function Navbar() {
               <FiGithub size={16} />
               GitHub
             </a>
+            <button
+              className="hamburger md:hidden flex flex-col gap-[5px] bg-transparent p-1 w-[30px] h-[30px] justify-center items-center"
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="Toggle menu"
+            >
+              <span className={`block w-[22px] h-[2px] rounded-sm transition-all duration-300 origin-center ${menuOpen ? 'translate-y-[7px] rotate-45' : ''}`} style={{ background: 'var(--text-primary)' }}></span>
+              <span className={`block w-[22px] h-[2px] rounded-sm transition-all duration-300 ${menuOpen ? 'opacity-0' : ''}`} style={{ background: 'var(--text-primary)' }}></span>
+              <span className={`block w-[22px] h-[2px] rounded-sm transition-all duration-300 origin-center ${menuOpen ? '-translate-y-[7px] -rotate-45' : ''}`} style={{ background: 'var(--text-primary)' }}></span>
+            </button>
           </div>
-
-          <button
-            className="hamburger md:hidden flex flex-col gap-[5px] bg-transparent p-1"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Open menu"
-          >
-            <span className="block w-[22px] h-[2px] rounded-sm transition-all duration-300" style={{ background: 'var(--text-primary)' }}></span>
-            <span className="block w-[22px] h-[2px] rounded-sm transition-all duration-300" style={{ background: 'var(--text-primary)' }}></span>
-            <span className="block w-[22px] h-[2px] rounded-sm transition-all duration-300" style={{ background: 'var(--text-primary)' }}></span>
-          </button>
         </div>
       </nav>
 
@@ -108,14 +113,6 @@ export default function Navbar() {
           WebkitBackdropFilter: 'var(--backdrop-blur-heavy)',
         }}
       >
-        <button
-          className="absolute top-5 right-6 bg-transparent text-[1.8rem]"
-          style={{ color: 'var(--text-primary)' }}
-          onClick={() => setMenuOpen(false)}
-          aria-label="Close menu"
-        >
-          ✕
-        </button>
         {links.map((link) => (
           <a
             key={link.href}
@@ -127,9 +124,6 @@ export default function Navbar() {
             {link.label}
           </a>
         ))}
-        <button className="theme-toggle mt-2" onClick={toggleTheme} aria-label="Toggle theme">
-          {theme === 'dark' ? <FiSun size={18} /> : <FiMoon size={18} />}
-        </button>
       </div>
     </>
   );

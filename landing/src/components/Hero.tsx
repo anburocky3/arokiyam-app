@@ -106,11 +106,11 @@ export default function Hero() {
           className="fade-in fade-in-delay-4 flex items-center justify-center gap-3 text-[0.8rem]"
           style={{ color: 'var(--text-muted)' }}
         >
-          <span className="flex items-center gap-[5px]"><FaWindows size={14} />Windows</span>
+          <span className="flex items-center gap-[5px] hover:text-blue-500"><FaWindows size={14} />Windows</span>
           <span style={{ opacity: 0.4 }}>·</span>
-          <span className="flex items-center gap-[5px]"><FaApple size={14} />macOS</span>
+          <span className="flex items-center gap-[5px]   hover:text-gray-600"><FaApple size={14} />macOS</span>
           <span style={{ opacity: 0.4 }}>·</span>
-          <span className="flex items-center gap-[5px]"><FaLinux size={14} />Linux</span>
+          <span className="flex items-center gap-[5px]  hover:text-yellow-500"><FaLinux size={14} />Linux</span>
         </div>
         <p className="fade-in text-center mt-8 text-[0.85rem]" style={{ color: 'var(--text-muted)' }}>
           Latest stable release: <strong>{loading ? '...' : version}</strong>
