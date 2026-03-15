@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import Image from 'next/image'
 
 export default function Footer() {
   return (
@@ -7,21 +7,26 @@ export default function Footer() {
       style={{ borderColor: 'var(--border-glass)' }}
       id="footer"
     >
-      <div className="w-full max-w-[1200px] xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-6 max-[480px]:px-4">
+      <div className="w-full max-w-300 xl:max-w-350 2xl:max-w-400 mx-auto px-6 max-[480px]:px-4">
         {/* Content row */}
         <div className="flex justify-between items-start gap-10 xl:gap-16 2xl:gap-24 mb-10 max-[768px]:flex-col">
           {/* Brand */}
           <div className="max-w-[320px]">
             <div
-              className="flex items-center gap-[10px] font-bold text-[1.3rem] mb-3"
+              className="flex items-center gap-2.5 font-bold text-[1.3rem] mb-3"
               style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-primary)' }}
             >
-              <Image width={34} height={34} src="/logo.png" alt="Arokiyam" className="w-8 h-8 rounded-[8px] object-cover" />
+              <Image
+                width={34}
+                height={34}
+                src="/logo.png"
+                alt="Arokiyam"
+                className="w-8 h-8 rounded-lg object-cover"
+              />
               Arokiyam
             </div>
             <p className="text-[0.85rem] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Your intelligent desktop wellness companion.
-              Built for developers, by developers.
+              Your intelligent desktop wellness companion. Built for developers, by developers.
             </p>
           </div>
 
@@ -34,16 +39,16 @@ export default function Footer() {
               >
                 Product
               </h4>
-              <ul className="flex flex-col gap-[10px] list-none">
+              <ul className="flex flex-col gap-2.5 list-none">
                 {[
                   { label: 'Features', href: '#features' },
                   { label: 'Downloads', href: '#download' },
-                  { label: 'Preview', href: '#preview' },
+                  { label: 'Preview', href: '#preview' }
                 ].map(({ label, href }) => (
                   <li key={href}>
                     <a
                       href={href}
-                      className="text-[0.85rem] transition-all duration-300 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                      className="text-[0.85rem] transition-all duration-300 text-(--text-muted) hover:text-(--text-primary)"
                     >
                       {label}
                     </a>
@@ -59,18 +64,30 @@ export default function Footer() {
               >
                 Resources
               </h4>
-              <ul className="flex flex-col gap-[10px] list-none">
+              <ul className="flex flex-col gap-2.5 list-none">
                 {[
-                  { label: 'GitHub', href: 'https://github.com/anburocky3/arokiyam-app', external: true },
-                  { label: 'Documentation', href: 'https://github.com/anburocky3/arokiyam-app#readme', external: true },
-                  { label: 'License (MIT)', href: 'https://github.com/anburocky3/arokiyam-app/blob/main/LICENSE', external: true },
+                  {
+                    label: 'GitHub',
+                    href: 'https://github.com/anburocky3/arokiyam-app',
+                    external: true
+                  },
+                  {
+                    label: 'Documentation',
+                    href: 'https://github.com/anburocky3/arokiyam-app#readme',
+                    external: true
+                  },
+                  {
+                    label: 'License (MIT)',
+                    href: 'https://github.com/anburocky3/arokiyam-app/blob/main/LICENSE',
+                    external: true
+                  }
                 ].map(({ label, href, external }) => (
                   <li key={href}>
                     <a
                       href={href}
                       target={external ? '_blank' : undefined}
                       rel={external ? 'noopener noreferrer' : undefined}
-                      className="text-[0.85rem] transition-all duration-300 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                      className="text-[0.85rem] transition-all duration-300 text-(--text-muted) hover:text-(--text-primary)"
                     >
                       {label}
                     </a>
@@ -87,29 +104,21 @@ export default function Footer() {
           style={{ borderColor: 'var(--border-glass)' }}
         >
           <p className="text-[0.8rem]" style={{ color: 'var(--text-muted)' }}>
-            App by{' '}
+            Made with ❤️ by{' '}
             <a
-              href="https://github.com/anburocky3"
+              href="https://anbuselvan-annamalai.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium"
-              style={{ color: 'var(--text-primary)' }}
+              style={{ color: 'var(--accent-primary-hover)' }}
             >
               Anbuselvan Annamalai
             </a>
-            {' • '}
-            Landing by{' '}
-            <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-              Gokulakrishnan A
-            </span>
-            {' & '}
-            <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-              Saranmuthukumar K
-            </span>
           </p>
-          <p className="text-[0.8rem]" style={{ color: 'var(--text-muted)' }}>All Rights Reserved © 2026</p>
+          <p className="text-[0.8rem]" style={{ color: 'var(--text-muted)' }}>
+            All Rights Reserved © 2026
+          </p>
         </div>
       </div>
     </footer>
-  );
+  )
 }
