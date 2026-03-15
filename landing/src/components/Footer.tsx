@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 export default function Footer() {
   return (
     <footer
@@ -14,7 +16,7 @@ export default function Footer() {
               className="flex items-center gap-[10px] font-bold text-[1.3rem] mb-3"
               style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-primary)' }}
             >
-              <img src="/logo.png" alt="Arokiyam" className="w-8 h-8 rounded-[8px] object-cover" />
+              <Image width={34} height={34} src="/logo.png" alt="Arokiyam" className="w-8 h-8 rounded-[8px] object-cover" />
               Arokiyam
             </div>
             <p className="text-[0.85rem] leading-relaxed" style={{ color: 'var(--text-muted)' }}>

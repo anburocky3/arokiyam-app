@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FiSun, FiMoon, FiGithub } from 'react-icons/fi';
+import Image from 'next/image';
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -90,7 +91,7 @@ export default function Navbar() {
             className="flex items-center gap-[10px] font-bold text-[1.3rem]"
             style={{ fontFamily: 'var(--font-heading)', color: 'var(--text-primary)' }}
           >
-            <img src="/logo.png" alt="Arokiyam" className="w-[34px] h-[34px] rounded-[10px] object-cover" />
+            <Image width={34} height={34} src="/logo.png" alt="Arokiyam" className="w-[34px] h-[34px] rounded-[10px] object-cover" />
             Arokiyam
           </a>
 

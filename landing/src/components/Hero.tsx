@@ -1,6 +1,7 @@
 import { FiDownload } from 'react-icons/fi';
 import { FaGithub, FaWindows, FaApple, FaLinux } from 'react-icons/fa';
 import { useGitHubRelease } from '@/hooks/useGitHubRelease';
+import Image from 'next/image';
 
 export default function Hero() {
   const { version, loading } = useGitHubRelease();
@@ -54,7 +55,7 @@ export default function Hero() {
             backdropFilter: 'var(--backdrop-blur)',
           }}
         >
-          <img src="/logo.png" alt="" className="w-5 h-5 rounded-[5px] object-cover" />
+          <Image src="/logo.png" alt="" width={20} height={20} className="w-5 h-5 rounded-[5px] object-cover" />
           Open Source Desktop Wellness
         </div>
 

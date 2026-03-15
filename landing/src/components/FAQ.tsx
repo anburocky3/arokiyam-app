@@ -76,7 +76,7 @@ export default function FAQ() {
                 >
                   <span className="font-semibold text-[1.05rem] pr-8">{faq.question}</span>
                   <div
-                    className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}
+                    className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}
                     style={{ background: 'rgba(99,102,241,0.1)', color: 'var(--accent-primary)' }}
                   >
                     <FiChevronDown size={18} />
