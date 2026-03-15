@@ -88,6 +88,12 @@ const motivationalQuotes: Array<{ quote: string; author: string }> = [
   { quote: 'Hydrate, breathe, blink, then build.', author: 'Arokiyam' }
 ]
 
+const machineUsageAlertThresholdHours = [6, 8, 10]
+const machineUsageSnoozeMs = 30 * 60 * 1000
+
+const creditsAcknowledgement =
+  'Landing page created by Gokulakrishnan A and Saran Muthukumar K during their CyberDude Live internship tenure.'
+
 const getStoredBlinkConfig = (): BlinkConfig => {
   const stored = window.localStorage.getItem('arokiyam-blink-config')
   if (!stored) return defaultBlinkConfig
@@ -173,10 +179,17 @@ function App(): React.JSX.Element {
     version: string
     channel: 'development' | 'production'
   } | null>(null)
-  const [updateReady, setUpdateReady] = useState(false)
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false)
   const [updateStatusMessage, setUpdateStatusMessage] = useState('')
+  const [showCreditsModal, setShowCreditsModal] = useState(false)
+  const [machineUsageAlert, setMachineUsageAlert] = useState<{ thresholdHours: number } | null>(
+    null
+  )
+  const [machineUsageSnoozeUntil, setMachineUsageSnoozeUntil] = useState<number | null>(null)
+  const [dismissedMachineUsageThresholds, setDismissedMachineUsageThresholds] = useState<number[]>(
+    []
+  )
   const shouldTrackUptime = uptimeSeconds !== null
   const stressSnapshot = useStressMonitor()
   const [activityToast, setActivityToast] = useState<{ message: string; expiresAt: number } | null>(
@@ -186,7 +199,7 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     let isMounted = true
-    window.api
+    void window.api
       .getSystemInfo()
       .then((info) => {
         if (!isMounted) return
@@ -196,6 +209,7 @@ function App(): React.JSX.Element {
         if (!isMounted) return
         setUptimeSeconds(null)
       })
+
     return () => {
       isMounted = false
     }
@@ -261,14 +275,12 @@ function App(): React.JSX.Element {
       .getUpdateState()
       .then((state) => {
         if (!isMounted) return
-        setUpdateReady(state.updateReady)
         if (!state.packaged) {
           setUpdateStatusMessage('Manual update check is available only in installed builds.')
         }
       })
       .catch(() => {
         if (!isMounted) return
-        setUpdateReady(false)
       })
 
     return () => {
@@ -388,6 +400,49 @@ function App(): React.JSX.Element {
     hydrationConfig.enabled,
     drinkConfig.enabled
   ])
+
+  useEffect(() => {
+    if (uptimeSeconds === null) return
+
+    const currentHour = new Date().getHours()
+    const inQuietHours = currentHour >= 22 || currentHour < 7
+    const remindersBlocked = !notificationsEnabled || (quietHoursEnabled && inQuietHours)
+    if (remindersBlocked) return
+
+    if (machineUsageSnoozeUntil && Date.now() < machineUsageSnoozeUntil) return
+    if (machineUsageAlert) return
+
+    const nextThreshold = machineUsageAlertThresholdHours.find(
+      (hours) => uptimeSeconds >= hours * 3600 && !dismissedMachineUsageThresholds.includes(hours)
+    )
+
+    if (nextThreshold) {
+      setMachineUsageAlert({ thresholdHours: nextThreshold })
+    }
+  }, [
+    uptimeSeconds,
+    notificationsEnabled,
+    quietHoursEnabled,
+    machineUsageSnoozeUntil,
+    machineUsageAlert,
+    dismissedMachineUsageThresholds
+  ])
+
+  const snoozeMachineUsageAlert = (): void => {
+    setMachineUsageAlert(null)
+    setMachineUsageSnoozeUntil(Date.now() + machineUsageSnoozeMs)
+  }
+
+  const dismissMachineUsageAlert = (): void => {
+    if (!machineUsageAlert) return
+    setDismissedMachineUsageThresholds((previous) =>
+      previous.includes(machineUsageAlert.thresholdHours)
+        ? previous
+        : [...previous, machineUsageAlert.thresholdHours]
+    )
+    setMachineUsageAlert(null)
+    setMachineUsageSnoozeUntil(null)
+  }
 
   const greeting = getGreeting(currentTime)
   const displayGreetingName = displayName.trim() || 'there'
@@ -509,11 +564,21 @@ function App(): React.JSX.Element {
     void window.api
       .checkForUpdates()
       .then((result) => {
-        setUpdateReady(result.updateReady)
         setUpdateStatusMessage(result.message)
+        if (result.updateReady) {
+          const shouldInstall = window.confirm(
+            'Update found and ready to install. Restart now to install the update?'
+          )
+          if (shouldInstall) {
+            installDownloadedUpdate()
+          }
+          return
+        }
+        window.alert(result.message)
       })
       .catch(() => {
         setUpdateStatusMessage('Update check failed. Please try again.')
+        window.alert('Update check failed. Please try again.')
       })
       .finally(() => {
         setIsCheckingUpdates(false)
@@ -586,6 +651,35 @@ function App(): React.JSX.Element {
       {activityToast && (
         <div className="absolute right-6 top-20 z-50 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm font-semibold text-slate-700 shadow-lg dark:border-slate-700/60 dark:bg-slate-900/90 dark:text-slate-100">
           {activityToast.message}
+        </div>
+      )}
+      {machineUsageAlert && (
+        <div className="absolute right-6 top-36 z-50 w-88 rounded-2xl border border-amber-300/70 bg-white/95 p-4 text-sm shadow-xl dark:border-amber-500/40 dark:bg-slate-900/95">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+            High computer usage
+          </p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+            System has been running for over {machineUsageAlert.thresholdHours} hours.
+          </p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+            Consider taking a longer break to reduce strain.
+          </p>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+              onClick={snoozeMachineUsageAlert}
+            >
+              Snooze 30 min
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-amber-300/70 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:border-amber-400 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:border-amber-300/70"
+              onClick={dismissMachineUsageAlert}
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
       <button
@@ -686,7 +780,7 @@ function App(): React.JSX.Element {
       </header>
 
       {activeMenu === 'dashboard' && (
-        <main className="mx-auto mt-8 grid w-full max-w-6xl gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <main className="mx-auto mt-8 w-full max-w-6xl">
           <section className="space-y-6">
             {needsMachineRest && (
               <div className="rounded-2xl border border-amber-300/70 bg-linear-to-r from-amber-100 to-orange-100 p-4 text-amber-900 shadow-sm dark:border-amber-500/30 dark:from-amber-500/20 dark:to-orange-500/20 dark:text-amber-100">
@@ -1409,33 +1503,12 @@ function App(): React.JSX.Element {
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div className={`${cardClass} p-5`}>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Build</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Installed version and release channel.
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
-                  v{buildInfo?.version ?? 'Unknown'}
-                </span>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    buildInfo?.channel === 'production'
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                      : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
-                  }`}
-                >
-                  {buildInfo?.channel === 'production' ? 'Production release' : 'Development build'}
-                </span>
-              </div>
-            </div>
-
-            <div className={`${cardClass} p-5`}>
+            <div className={`${cardClass} flex h-full flex-col justify-between p-5`}>
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Author</p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Built and maintained by Anbuselvan Rocky
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 <a
                   href="https://anbuselvan-annamalai.com"
                   target="_blank"
@@ -1452,42 +1525,63 @@ function App(): React.JSX.Element {
                 >
                   GitHub
                 </a>
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                  onClick={() => setShowCreditsModal(true)}
+                >
+                  Credits
+                </button>
               </div>
             </div>
 
-            <div className={`${cardClass} p-5`}>
+            <div className={`${cardClass} flex h-full flex-col justify-between p-5`}>
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Project</p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Open-source desktop app built with Electron + React + TypeScript.
               </p>
-              <div className="flex items-center space-x-3">
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <a
-                    href="https://github.com/anburocky3/arokiyam-app/fork"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
-                  >
-                    GitHub Repository
-                  </a>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <a
-                    href="https://arokiyam.vercel.app"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
-                  >
-                    Website
-                  </a>
-                </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <a
+                  href="https://github.com/anburocky3/arokiyam-app/fork"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                >
+                  GitHub Repository
+                </a>
+                <a
+                  href="https://arokiyam.vercel.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                >
+                  Website
+                </a>
               </div>
             </div>
 
             <div className={`${cardClass} p-5 md:col-span-2`}>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Updates</p>
+              <div className="flex items-center justify-between ">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Updates</p>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
+                    v{buildInfo?.version ?? 'Unknown'}
+                  </span>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      buildInfo?.channel === 'production'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                        : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                    }`}
+                  >
+                    {buildInfo?.channel === 'production'
+                      ? 'Production release'
+                      : 'Development build'}
+                  </span>
+                </div>
+              </div>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Check for latest version now or install a downloaded update immediately.
+                Check for latest version. If an update is ready, you will be asked to install it.
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
@@ -1497,14 +1591,6 @@ function App(): React.JSX.Element {
                   disabled={isCheckingUpdates || isInstallingUpdate}
                 >
                   {isCheckingUpdates ? 'Checking...' : 'Check for updates'}
-                </button>
-                <button
-                  className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:border-emerald-400/70"
-                  onClick={installDownloadedUpdate}
-                  type="button"
-                  disabled={!updateReady || isCheckingUpdates || isInstallingUpdate}
-                >
-                  {isInstallingUpdate ? 'Restarting...' : 'Restart to install update'}
                 </button>
               </div>
               <p className="mt-3 text-xs text-slate-600 dark:text-slate-300">
@@ -1549,6 +1635,46 @@ function App(): React.JSX.Element {
             </a>
           </div>
         </section>
+      )}
+
+      {showCreditsModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm"
+          onClick={() => setShowCreditsModal(false)}
+          role="presentation"
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xl dark:border-slate-700/60 dark:bg-slate-900"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Credits"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                  Credits
+                </p>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                  Landing page acknowledgement
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                onClick={() => setShowCreditsModal(false)}
+              >
+                Close
+              </button>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+              {creditsAcknowledgement}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+              All rights reserved by CyberDude Networks Pvt. Ltd.
+            </p>
+          </div>
+        </div>
       )}
 
       <div className="mx-auto mt-10 w-full text-center text-xs text-slate-500 dark:text-slate-400 ">
