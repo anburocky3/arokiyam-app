@@ -1,11 +1,36 @@
+"use client";
+
+import { useScrollAnimation } from '@/hooks/useScrollAnimation';
+import Navbar from '@/components/Navbar';
+import Hero from '@/components/Hero';
+import Download from '@/components/Download';
+import Screenshots from '@/components/Preview';
+import Features from '@/components/Features';
+import HowItWorks from '@/components/HowItWorks';
+import WhyDevelopers from '@/components/WhyDevelopers';
+import GetRunning from '@/components/GetRunning';
+import FAQ from '@/components/FAQ';
+import CallToAction from '@/components/CallToAction';
+import Footer from '@/components/Footer';
+
 export default function Home() {
+  useScrollAnimation();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+    <>
+      <Navbar />
       <main>
-        <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-200">
-          Something is building!
-        </h1>
+        <Hero />
+        <Features />
+        <Screenshots />
+        <Download />
+        <HowItWorks />
+        <WhyDevelopers />
+        <GetRunning />
+        <FAQ />
+        <CallToAction />
       </main>
-    </div>
-  )
+      <Footer />
+    </>
+  );
 }
