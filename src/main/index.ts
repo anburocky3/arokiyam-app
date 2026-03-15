@@ -66,12 +66,28 @@ let stressMonitor: ReturnType<typeof createStressMonitor> | null = null
 let tray: Tray | null = null
 let isQuitting = false
 let updateReadyToInstall = false
+let updateDownloadProgress = 0
 const APP_DISPLAY_NAME = 'Arokiyam'
 const APP_USER_MODEL_ID = 'Arokiyam'
 const QUIET_HOURS_START_HOUR = 22
 const QUIET_HOURS_END_HOUR = 7
 const WINDOWS_AUTO_START_ARGS = ['--auto-launch']
 const UPDATE_CHECK_INTERVAL_MS = 2 * 60 * 60 * 1000
+
+const compareVersions = (left: string, right: string): number => {
+  const leftParts = left.split('.').map((part) => Number.parseInt(part, 10) || 0)
+  const rightParts = right.split('.').map((part) => Number.parseInt(part, 10) || 0)
+  const length = Math.max(leftParts.length, rightParts.length)
+
+  for (let index = 0; index < length; index += 1) {
+    const leftValue = leftParts[index] ?? 0
+    const rightValue = rightParts[index] ?? 0
+    if (leftValue > rightValue) return 1
+    if (leftValue < rightValue) return -1
+  }
+
+  return 0
+}
 
 const getAutoStartStatus = (): boolean => {
   if (!app.isPackaged) return false
@@ -354,15 +370,46 @@ const applyOverlayMode = (state: OverlayState): void => {
 const setupAutoUpdates = (): void => {
   if (!app.isPackaged) return
 
+  const sendUpdateStatus = (payload: {
+    updateReady: boolean
+    downloadProgress: number
+    message: string
+  }): void => {
+    BrowserWindow.getAllWindows().forEach((window) => {
+      window.webContents.send('update:status', payload)
+    })
+  }
+
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
 
-  autoUpdater.on('update-available', () => {
+  autoUpdater.on('update-available', (info) => {
     updateReadyToInstall = false
+    updateDownloadProgress = 0
+    sendUpdateStatus({
+      updateReady: false,
+      downloadProgress: 0,
+      message: `Update ${info.version} found. Downloading in background...`
+    })
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    updateDownloadProgress = Math.min(100, Math.max(0, Math.round(progress.percent)))
+    sendUpdateStatus({
+      updateReady: false,
+      downloadProgress: updateDownloadProgress,
+      message: `Downloading update... ${updateDownloadProgress}%`
+    })
   })
 
   autoUpdater.on('update-downloaded', () => {
     updateReadyToInstall = true
+    updateDownloadProgress = 100
+    sendUpdateStatus({
+      updateReady: true,
+      downloadProgress: 100,
+      message: 'Update downloaded. Restart to install.'
+    })
     if (!Notification.isSupported()) return
     const notification = new Notification({
       title: APP_DISPLAY_NAME,
@@ -372,7 +419,24 @@ const setupAutoUpdates = (): void => {
     notification.show()
   })
 
+  autoUpdater.on('update-not-available', () => {
+    updateReadyToInstall = false
+    updateDownloadProgress = 0
+    sendUpdateStatus({
+      updateReady: false,
+      downloadProgress: 0,
+      message: `You are already on the latest version (${app.getVersion()}).`
+    })
+  })
+
   autoUpdater.on('error', (error) => {
+    updateReadyToInstall = false
+    updateDownloadProgress = 0
+    sendUpdateStatus({
+      updateReady: false,
+      downloadProgress: 0,
+      message: `Update check failed: ${error.message}`
+    })
     console.error('Auto update failed:', error)
   })
 
@@ -678,7 +742,8 @@ app.whenReady().then(() => {
   ipcMain.handle('update:state', () => {
     return {
       packaged: app.isPackaged,
-      updateReady: updateReadyToInstall
+      updateReady: updateReadyToInstall,
+      downloadProgress: updateDownloadProgress
     }
   })
 
@@ -692,29 +757,36 @@ app.whenReady().then(() => {
 
     try {
       const result = await autoUpdater.checkForUpdates()
+      const currentVersion = app.getVersion()
+      const latestVersion = result?.updateInfo?.version ?? null
+
       if (updateReadyToInstall) {
         return {
           updateReady: true,
-          message: 'Update is already downloaded. Click restart to install.'
+          message: 'Update is already downloaded. Restart to install.',
+          downloadProgress: 100
         }
       }
 
-      if (result?.updateInfo?.version) {
+      if (latestVersion && compareVersions(latestVersion, currentVersion) > 0) {
         return {
           updateReady: false,
-          message: `Update ${result.updateInfo.version} found. Downloading in background...`
+          message: `Update ${latestVersion} found. Downloading in background...`,
+          downloadProgress: updateDownloadProgress
         }
       }
 
       return {
         updateReady: false,
-        message: 'You are on the latest version.'
+        message: `You are already on the latest version (${currentVersion}).`,
+        downloadProgress: 0
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       return {
         updateReady: updateReadyToInstall,
-        message: `Update check failed: ${message}`
+        message: `Update check failed: ${message}`,
+        downloadProgress: updateDownloadProgress
       }
     }
   })

@@ -32,8 +32,16 @@ declare global {
       setQuietHoursEnabled: (enabled: boolean) => Promise<boolean>
       getDisplayName: () => Promise<string>
       setDisplayName: (name: string) => Promise<string>
-      getUpdateState: () => Promise<{ packaged: boolean; updateReady: boolean }>
-      checkForUpdates: () => Promise<{ updateReady: boolean; message: string }>
+      getUpdateState: () => Promise<{
+        packaged: boolean
+        updateReady: boolean
+        downloadProgress: number
+      }>
+      checkForUpdates: () => Promise<{
+        updateReady: boolean
+        message: string
+        downloadProgress: number
+      }>
       installUpdateNow: () => Promise<{ started: boolean; message: string }>
       getStressSnapshot: () => Promise<StressSnapshot>
       setBreakConfig: (config: BreakConfig) => Promise<void>
@@ -55,6 +63,11 @@ declare global {
       onStressUpdate: (callback: (snapshot: StressSnapshot) => void) => () => void
       onOverlayState: (callback: (state: OverlayState) => void) => () => void
       onOverlayToast: (callback: (toast: OverlayToast) => void) => () => void
+      onUpdateStatus: (callback: (status: {
+        updateReady: boolean
+        downloadProgress: number
+        message: string
+      }) => void) => () => void
     }
   }
 }

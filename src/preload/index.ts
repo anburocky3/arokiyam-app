@@ -34,9 +34,17 @@ const api = {
   setDisplayName: (name: string) =>
     ipcRenderer.invoke('settings:setDisplayName', name) as Promise<string>,
   getUpdateState: () =>
-    ipcRenderer.invoke('update:state') as Promise<{ packaged: boolean; updateReady: boolean }>,
+    ipcRenderer.invoke('update:state') as Promise<{
+      packaged: boolean
+      updateReady: boolean
+      downloadProgress: number
+    }>,
   checkForUpdates: () =>
-    ipcRenderer.invoke('update:check') as Promise<{ updateReady: boolean; message: string }>,
+    ipcRenderer.invoke('update:check') as Promise<{
+      updateReady: boolean
+      message: string
+      downloadProgress: number
+    }>,
   installUpdateNow: () =>
     ipcRenderer.invoke('update:install') as Promise<{ started: boolean; message: string }>,
   getStressSnapshot: () => ipcRenderer.invoke('stress:getSnapshot') as Promise<StressSnapshot>,
@@ -78,6 +86,18 @@ const api = {
     }
     ipcRenderer.on('overlay:toast', listener)
     return () => ipcRenderer.removeListener('overlay:toast', listener)
+  },
+  onUpdateStatus: (
+    callback: (status: { updateReady: boolean; downloadProgress: number; message: string }) => void
+  ): (() => void) => {
+    const listener = (
+      _event: IpcRendererEvent,
+      status: { updateReady: boolean; downloadProgress: number; message: string }
+    ): void => {
+      callback(status)
+    }
+    ipcRenderer.on('update:status', listener)
+    return () => ipcRenderer.removeListener('update:status', listener)
   }
 }
 
