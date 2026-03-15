@@ -73,7 +73,7 @@ export default function Navbar() {
     <>
       {/* Always-on glassmorphism navbar */}
       <nav
-        className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-300`}
+        className={`fixed top-0 left-0 right-0 z-1000 transition-all duration-300`}
         style={{
           padding: scrolled ? '10px 0' : '16px 0',
           background: 'var(--nav-bg)',
@@ -136,7 +136,7 @@ export default function Navbar() {
 
       {/* Mobile full-screen glass menu */}
       <div
-        className={`fixed inset-0 z-[999] flex-col items-center justify-center gap-7 ${menuOpen ? 'flex' : 'hidden'}`}
+        className={`fixed inset-0 z-999 flex-col items-center justify-center gap-7 ${menuOpen ? 'flex' : 'hidden'}`}
         style={{
           background: 'var(--nav-bg)',
           backdropFilter: 'var(--backdrop-blur-heavy)',

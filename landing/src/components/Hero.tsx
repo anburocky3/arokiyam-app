@@ -43,7 +43,7 @@ export default function Hero() {
         }}
       />
 
-      <div className="w-full max-w-[1200px] xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-6 max-[480px]:px-4 relative z-[1] max-[768px]:pb-[60px] text-center">
+      <div className="w-full max-w-[1200px] xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-6 max-[480px]:px-4 relative z-1 max-[768px]:pb-[60px] text-center">
         {/* Badge */}
         <div
           className="hero-badge fade-in inline-flex items-center gap-2 px-4 py-[7px] rounded-full text-[0.8rem] font-medium mb-8"

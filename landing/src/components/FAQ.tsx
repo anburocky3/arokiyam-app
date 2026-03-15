@@ -41,7 +41,7 @@ export default function FAQ() {
 
   return (
     <section className="relative py-[50px] md:py-[80px]" id="faq" style={{ scrollMarginTop: '100px' }}>
-      <div className="w-full max-w-[800px] xl:max-w-[900px] mx-auto px-6 max-[480px]:px-4 relative z-[1]">
+      <div className="w-full max-w-[800px] xl:max-w-[900px] mx-auto px-6 max-[480px]:px-4 relative z-1">
         <div className="text-center mb-14 md:mb-9">
           <h2 className="section-title fade-in mb-4">Frequently Asked Questions</h2>
           <p className="fade-in fade-in-delay-1 text-[1.05rem] text-[var(--text-secondary)]">

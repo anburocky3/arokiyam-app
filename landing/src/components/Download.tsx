@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { FiDownload } from 'react-icons/fi';
-import { FaWindows, FaApple, FaLinux } from 'react-icons/fa';
+import { FaWindows, FaApple } from 'react-icons/fa';
 
 import { useGitHubRelease } from '@/hooks/useGitHubRelease';
+import Image from 'next/image';
 
 export default function Download() {
-  const { version, loading } = useGitHubRelease();
+  const { version } = useGitHubRelease();
   const [userOS, setUserOS] = useState('');
   const [mounted, setMounted] = useState(false);
 
@@ -33,7 +34,7 @@ export default function Download() {
       id: 'linux',
       name: 'Linux',
       desc: 'Ubuntu, Debian, Fedora',
-      icon: <img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" alt="Linux" className="w-24 h-24 md:w-32 md:h-32" />,
+      icon: <Image src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" alt="Linux" className="w-24 h-24 md:w-32 md:h-32" />,
       buttons: [
         { label: '.AppImage', sub: 'Universal Linux', url: `https://github.com/anburocky3/arokiyam-app/releases/download/${version}/arokiyam-${cleanVersion}.AppImage` },
       ]
@@ -76,9 +77,9 @@ export default function Download() {
                     <a
                       key={idx}
                       href={btn.url}
-                      className={`flex-grow md:flex-grow-0 flex items-center gap-5 px-8 py-5 rounded-2xl transition-all duration-300 min-w-[240px] group/btn ${
+                      className={`grow md:grow-0 flex items-center gap-5 px-8 py-5 rounded-2xl transition-all duration-300 min-w-[240px] group/btn ${
                         isDetected 
-                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[0_20px_40px_-10px_rgba(79,70,229,0.4)] hover:shadow-[0_25px_50px_-12px_rgba(79,70,229,0.5)] hover:scale-[1.03]' 
+                        ? 'bg-linear-to-r from-indigo-600 to-violet-600 text-white shadow-[0_20px_40px_-10px_rgba(79,70,229,0.4)] hover:shadow-[0_25px_50px_-12px_rgba(79,70,229,0.5)] hover:scale-[1.03]' 
                         : 'bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/20 hover:scale-[1.01]'
                       }`}
                     >

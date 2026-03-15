@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+
 
 const previewImages = [
   { id: 1, title: 'App Dashboard', image: '/PreviewImages/1.png' },
@@ -23,13 +23,6 @@ export default function Screenshots() {
     return () => clearInterval(timer);
   }, [isHovered]);
 
-  const handlePrev = () => {
-    setActiveIndex((prev) => (prev - 1 + previewImages.length) % previewImages.length);
-  };
-
-  const handleNext = () => {
-    setActiveIndex((prev) => (prev + 1) % previewImages.length);
-  };
 
   return (
     <section className="relative py-[50px] md:py-[80px] overflow-hidden" id="preview" style={{ scrollMarginTop: '100px' }}>
@@ -72,7 +65,7 @@ export default function Screenshots() {
 
         <div className="fade-in fade-in-delay-3 w-full max-w-[700px] xl:max-w-[850px] 2xl:max-w-[1000px] mx-auto relative pt-4">
           <div
-            className="relative rounded-[16px] md:rounded-[24px] p-[8px] md:p-3 pb-6 md:pb-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)] mx-auto w-full aspect-[16/10] flex flex-col"
+            className="relative rounded-[16px] md:rounded-[24px] p-[8px] md:p-3 pb-6 md:pb-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)] mx-auto w-full aspect-16/10 flex flex-col"
             style={{
               background: '#2d3340', // Metallic gray
               border: '1px solid rgba(255,255,255,0.08)',
@@ -83,7 +76,7 @@ export default function Screenshots() {
 
             {/* Screen Container */}
             <div 
-              className="relative w-full flex-grow bg-[#0a0a0f] rounded-[8px] md:rounded-xl overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] border border-[rgba(255,255,255,0.03)] group"
+              className="relative w-full grow bg-[#0a0a0f] rounded-[8px] md:rounded-xl overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] border border-[rgba(255,255,255,0.03)] group"
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
             >
