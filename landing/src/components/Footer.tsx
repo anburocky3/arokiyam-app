@@ -41,10 +41,7 @@ export default function Footer() {
                   <li key={href}>
                     <a
                       href={href}
-                      className="text-[0.85rem] transition-all duration-300"
-                      style={{ color: 'var(--text-muted)' }}
-                      onMouseEnter={e => e.target.style.color = 'var(--text-primary)'}
-                      onMouseLeave={e => e.target.style.color = 'var(--text-muted)'}
+                      className="text-[0.85rem] transition-all duration-300 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                     >
                       {label}
                     </a>
@@ -71,10 +68,7 @@ export default function Footer() {
                       href={href}
                       target={external ? '_blank' : undefined}
                       rel={external ? 'noopener noreferrer' : undefined}
-                      className="text-[0.85rem] transition-all duration-300"
-                      style={{ color: 'var(--text-muted)' }}
-                      onMouseEnter={e => e.target.style.color = 'var(--text-primary)'}
-                      onMouseLeave={e => e.target.style.color = 'var(--text-muted)'}
+                      className="text-[0.85rem] transition-all duration-300 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                     >
                       {label}
                     </a>
@@ -91,15 +85,25 @@ export default function Footer() {
           style={{ borderColor: 'var(--border-glass)' }}
         >
           <p className="text-[0.8rem]" style={{ color: 'var(--text-muted)' }}>
-            Made with ❤️ by{' '}
+            App by{' '}
             <a
-              href="https://anbuselvan-annamalai.com"
+              href="https://github.com/anburocky3"
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: 'var(--accent-primary-hover)' }}
+              className="font-medium"
+              style={{ color: 'var(--text-primary)' }}
             >
               Anbuselvan Annamalai
             </a>
+            {' • '}
+            Landing by{' '}
+            <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
+              Gokulakrishnan A
+            </span>
+            {' & '}
+            <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
+              Saranmuthukumar K
+            </span>
           </p>
           <p className="text-[0.8rem]" style={{ color: 'var(--text-muted)' }}>All Rights Reserved © 2026</p>
         </div>

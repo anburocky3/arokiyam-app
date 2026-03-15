@@ -66,8 +66,8 @@ const features = [
 export default function Features() {
   return (
     <section
-      className="relative py-[100px] md:py-[80px]"
-      style={{ background: 'var(--gradient-section)' }}
+      className="relative py-[50px] md:py-[80px]"
+      style={{ background: 'var(--gradient-section)', scrollMarginTop: '100px' }}
       id="features"
     >
       <div className="w-full max-w-[1200px] xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-6 max-[480px]:px-4 relative z-[1]">

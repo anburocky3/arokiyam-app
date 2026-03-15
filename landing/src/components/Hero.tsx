@@ -1,14 +1,14 @@
 import { FiDownload } from 'react-icons/fi';
 import { FaGithub, FaWindows, FaApple, FaLinux } from 'react-icons/fa';
-import { useGitHubRelease } from '../hooks/useGitHubRelease';
+import { useGitHubRelease } from '@/hooks/useGitHubRelease';
 
 export default function Hero() {
   const { version, loading } = useGitHubRelease();
 
   return (
     <section
-      className="relative min-h-screen flex items-center overflow-hidden pt-20"
-      style={{ background: 'var(--bg-primary)' }}
+      className="relative min-h-screen flex items-center overflow-hidden pt-32 md:pt-40"
+      style={{ background: 'var(--bg-primary)', scrollMarginTop: '100px' }}
       id="hero"
     >
       {/* Gradient hero background */}
@@ -91,7 +91,7 @@ export default function Hero() {
             Download
           </a>
           <a
-            href="https://github.com/anburocky3/arokiyam-app"
+            href="https://github.com/anburocky3/arokiyam-app/fork"
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-secondary inline-flex items-center gap-2 px-[26px] py-[13px] rounded-xl font-semibold text-[0.9rem]"

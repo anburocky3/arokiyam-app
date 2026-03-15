@@ -6,6 +6,15 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState('dark');
   const [mounted, setMounted] = useState(false);
+  const [activeSection, setActiveSection] = useState('');
+
+  const links = [
+    { label: 'Features', href: '#features' },
+    { label: 'Preview', href: '#preview' },
+    { label: 'Download', href: '#download' },
+    { label: 'How It Works', href: '#how-it-works' },
+    { label: 'FAQ', href: '#faq' },
+  ];
 
   useEffect(() => {
     setMounted(true);
@@ -16,8 +25,38 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 40);
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 40);
+      
+      const sections = links.map(link => link.href.substring(1));
+      let current = '';
+
+      // Find the section that is currently most in view
+      for (const section of sections) {
+        const element = document.getElementById(section);
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          // Adjust threshold - if the element is at least 30% into the viewport
+          if (rect.top < window.innerHeight * 0.4 && rect.bottom > 200) {
+            current = section;
+          }
+        }
+      }
+
+      // Special case: if at the bottom of the page, the last section wins
+      if ((window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 50) {
+        current = sections[sections.length - 1];
+      }
+
+      // If at the very top, clear
+      if (window.scrollY < 100) {
+        setActiveSection('');
+      } else {
+        setActiveSection(current ? `#${current}` : '');
+      }
+    };
     window.addEventListener('scroll', handleScroll);
+    handleScroll(); // Initial check
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -29,13 +68,6 @@ export default function Navbar() {
   }, [theme, mounted]);
 
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
-
-  const links = [
-    { label: 'Features', href: '#features' },
-    { label: 'How It Works', href: '#how-it-works' },
-    { label: 'FAQ', href: '#faq' },
-    { label: 'Download', href: '#download' },
-  ];
 
   return (
     <>
@@ -67,10 +99,8 @@ export default function Navbar() {
               <li key={link.href}>
                 <a
                   href={link.href}
-                  className="text-[0.88rem] font-medium transition-all duration-300"
-                  style={{ color: 'var(--text-secondary)' }}
-                  onMouseEnter={e => (e.target as HTMLElement).style.color = 'var(--text-primary)'}
-                  onMouseLeave={e => (e.target as HTMLElement).style.color = 'var(--text-secondary)'}
+                  className={`text-[0.88rem] font-medium transition-all duration-300 hover:text-[var(--text-primary)]`}
+                  style={{ color: activeSection === link.href ? 'var(--accent-primary)' : 'var(--text-secondary)' }}
                 >
                   {link.label}
                 </a>
@@ -83,7 +113,7 @@ export default function Navbar() {
               {mounted ? (theme === 'dark' ? <FiSun size={18} /> : <FiMoon size={18} />) : <FiSun size={18} />}
             </button>
             <a
-              href="https://github.com/anburocky3/arokiyam-app/fork"
+              href='https://github.com/anburocky3/arokiyam-app/fork'
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-secondary navbar-cta-desktop hidden md:inline-flex items-center gap-2 py-[9px] px-5 rounded-xl font-semibold text-[0.82rem]"

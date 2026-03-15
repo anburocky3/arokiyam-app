@@ -22,13 +22,12 @@ export default function CallToAction() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full border border-[rgba(99,102,241,0.02)]"></div>
       </div>
 
-      <div className="w-full max-w-[1200px] xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-6 max-[480px]:px-4 relative z-[1] text-center flex flex-col items-center">
+      <div className="w-full max-w-[1200px]  xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-6 max-[480px]:px-4 relative z-[1] text-center flex flex-col items-center">
         {/* Eyebrow */}
         <div
-          className="fade-in inline-flex items-center justify-center px-4 py-1.5 rounded-full text-[0.85rem] font-semibold tracking-wide uppercase mb-6"
+          className="fade-in inline-flex bg-white/80 shadow-lg shadow-purple-500/20 items-center justify-center px-4 py-1.5 rounded-full text-[0.85rem] font-semibold tracking-wide uppercase mb-6"
           style={{
             color: 'var(--accent-primary)',
-            background: 'var(--accent-green-glow)',
             border: '1px solid rgba(99,102,241,0.2)'
           }}
         >

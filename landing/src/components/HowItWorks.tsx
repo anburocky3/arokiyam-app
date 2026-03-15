@@ -10,7 +10,7 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <section className="relative py-[100px] md:py-[80px]" id="how-it-works">
+    <section className="relative py-[50px] md:py-[80px]" id="how-it-works" style={{ scrollMarginTop: '100px' }}>
       <div className="w-full max-w-[1200px] xl:max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-6 max-[480px]:px-4">
         <div className="text-center mb-14 md:mb-9">
           <h2 className="section-title fade-in">How It Works</h2>

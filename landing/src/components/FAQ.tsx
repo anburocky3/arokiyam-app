@@ -3,6 +3,14 @@ import { FiChevronDown } from 'react-icons/fi';
 
 const faqs = [
   {
+    question: 'Who created Arokiyam?',
+    answer: <>Arokiyam was designed and developed by <a href="https://github.com/anburocky3" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:text-blue-500"><span className='text-blue-500 hover:underline'>Anbuselvan Annamalai</span></a>.</>
+  },
+  {
+    question: 'Who built this landing page?',
+    answer: <>This landing page was designed and developed by <a href="https://github.com/Gokulproject5" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] "><span className='text-blue-500 hover:underline'>Gokulakrishnan A</span></a> and <a href="https://github.com/saranmuthukumark-cpu" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:text-blue-500"><span className='text-blue-500 hover:underline'>Saranmuthukumar K</span></a>.</>
+  },
+  {
     question: 'How does Arokiyam track my stress?',
     answer: 'Arokiyam analyzes your keyboard typing patterns and mouse movements locally on your machine to estimate your stress levels. We look for signs like erratic typing, heavy keystrokes, or jerky mouse movement.'
   },
@@ -25,14 +33,14 @@ const faqs = [
 ];
 
 export default function FAQ() {
-  const [openIndex, setOpenIndex] = useState(null);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
-  const toggleFaQ = (index) => {
+  const toggleFaQ = (index: number) => {
     setOpenIndex(openIndex === index ? null : index);
   };
 
   return (
-    <section className="relative py-[100px] md:py-[80px]" id="faq">
+    <section className="relative py-[50px] md:py-[80px]" id="faq" style={{ scrollMarginTop: '100px' }}>
       <div className="w-full max-w-[800px] xl:max-w-[900px] mx-auto px-6 max-[480px]:px-4 relative z-[1]">
         <div className="text-center mb-14 md:mb-9">
           <h2 className="section-title fade-in mb-4">Frequently Asked Questions</h2>
@@ -57,10 +65,12 @@ export default function FAQ() {
                   className="w-full px-6 py-5 text-left flex items-center justify-between focus:outline-none transition-colors duration-200"
                   style={{ color: isOpen ? 'var(--accent-primary-hover)' : 'var(--text-primary)' }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.parentElement.style.borderColor = 'var(--border-glass-hover)';
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) parent.style.borderColor = 'var(--border-glass-hover)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.parentElement.style.borderColor = 'var(--border-glass)';
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) parent.style.borderColor = 'var(--border-glass)';
                   }}
                   onClick={() => toggleFaQ(index)}
                 >

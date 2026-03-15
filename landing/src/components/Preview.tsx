@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 const previewImages = [
-  { id: 1, title: 'App Dashboard', image: '/previewImages/1.png' },
-  { id: 2, title: 'Rest Your Eyes', image: '/previewImages/2.png' },
-  { id: 3, title: 'Reset Your Energy', image: '/previewImages/3.png' },
-  { id: 4, title: 'Hydration', image: '/previewImages/4.png' },
-  { id: 5, title: 'Focus Drink', image: '/previewImages/5.png' },
-  { id: 6, title: 'Preferences', image: '/previewImages/6.png' },
+  { id: 1, title: 'App Dashboard', image: '/PreviewImages/1.png' },
+  { id: 2, title: 'Rest Your Eyes', image: '/PreviewImages/2.png' },
+  { id: 3, title: 'Reset Your Energy', image: '/PreviewImages/3.png' },
+  { id: 4, title: 'Hydration', image: '/PreviewImages/4.png' },
+  { id: 5, title: 'Focus Drink', image: '/PreviewImages/5.png' },
+  { id: 6, title: 'Preferences', image: '/PreviewImages/6.png' },
 ];
 
 export default function Screenshots() {
@@ -32,7 +32,7 @@ export default function Screenshots() {
   };
 
   return (
-    <section className="relative py-[100px] md:py-[80px] overflow-hidden" id="preview">
+    <section className="relative py-[50px] md:py-[80px] overflow-hidden" id="preview" style={{ scrollMarginTop: '100px' }}>
       {/* Background glow for the laptop */}
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full blur-[140px] opacity-[0.15] pointer-events-none"
