@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
   ActivityPacingConfig,
+  ActivityPauseState,
   BlinkConfig,
   BreakConfig,
   DrinkConfig,
@@ -30,6 +31,12 @@ const api = {
     ipcRenderer.invoke('settings:getQuietHoursEnabled') as Promise<boolean>,
   setQuietHoursEnabled: (enabled: boolean) =>
     ipcRenderer.invoke('settings:setQuietHoursEnabled', enabled) as Promise<boolean>,
+  getActivityPauseState: () =>
+    ipcRenderer.invoke('settings:getActivityPauseState') as Promise<ActivityPauseState>,
+  pauseActivities: (minutes: number | null) =>
+    ipcRenderer.invoke('settings:pauseActivities', minutes) as Promise<ActivityPauseState>,
+  clearActivityPause: () =>
+    ipcRenderer.invoke('settings:clearActivityPause') as Promise<ActivityPauseState>,
   getDisplayName: () => ipcRenderer.invoke('settings:getDisplayName') as Promise<string>,
   setDisplayName: (name: string) =>
     ipcRenderer.invoke('settings:setDisplayName', name) as Promise<string>,
@@ -98,6 +105,13 @@ const api = {
     }
     ipcRenderer.on('update:status', listener)
     return () => ipcRenderer.removeListener('update:status', listener)
+  },
+  onActivityPauseState: (callback: (state: ActivityPauseState) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, state: ActivityPauseState): void => {
+      callback(state)
+    }
+    ipcRenderer.on('settings:activityPause', listener)
+    return () => ipcRenderer.removeListener('settings:activityPause', listener)
   }
 }
 

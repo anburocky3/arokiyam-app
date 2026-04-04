@@ -23,6 +23,11 @@ type ActivityPacingConfig = {
   minimumGapMinutes: number
 }
 
+type ActivityPauseState = {
+  enabled: boolean
+  resumeAt: number | null
+}
+
 type HydrationConfig = {
   enabled: boolean
   intervalMinutes: number
@@ -70,6 +75,11 @@ const defaultDrinkConfig: DrinkConfig = {
 
 const defaultActivityPacingConfig: ActivityPacingConfig = {
   minimumGapMinutes: 5
+}
+
+const defaultActivityPauseState: ActivityPauseState = {
+  enabled: false,
+  resumeAt: null
 }
 
 const defaultHealthStrictness: HealthStrictness = 'basic'
@@ -169,6 +179,8 @@ function App(): React.JSX.Element {
   const [activityPacingConfig, setActivityPacingConfig] = useState<ActivityPacingConfig>(
     getStoredActivityPacingConfig
   )
+  const [activityPauseState, setActivityPauseState] =
+    useState<ActivityPauseState>(defaultActivityPauseState)
   const [healthStrictness, setHealthStrictness] =
     useState<HealthStrictness>(getStoredHealthStrictness)
   const [autoStartEnabled, setAutoStartEnabled] = useState(true)
@@ -263,6 +275,17 @@ function App(): React.JSX.Element {
       })
 
     void window.api
+      .getActivityPauseState()
+      .then((state) => {
+        if (!isMounted) return
+        setActivityPauseState(state)
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setActivityPauseState(defaultActivityPauseState)
+      })
+
+    void window.api
       .getDisplayName()
       .then((name) => {
         if (!isMounted) return
@@ -293,10 +316,15 @@ function App(): React.JSX.Element {
       setUpdateDownloadProgress(status.downloadProgress)
       setUpdateStatusMessage(status.message)
     })
+    const unsubscribePauseState = window.api.onActivityPauseState((state) => {
+      if (!isMounted) return
+      setActivityPauseState(state)
+    })
 
     return () => {
       isMounted = false
       unsubscribeUpdateStatus()
+      unsubscribePauseState()
     }
   }, [])
 
@@ -361,7 +389,8 @@ function App(): React.JSX.Element {
 
       const currentHour = new Date().getHours()
       const inQuietHours = currentHour >= 22 || currentHour < 7
-      const remindersBlocked = !notificationsEnabled || (quietHoursEnabled && inQuietHours)
+      const remindersBlocked =
+        !notificationsEnabled || (quietHoursEnabled && inQuietHours) || activityPauseState.enabled
       if (remindersBlocked) {
         if (activityToast) setActivityToast(null)
         return
@@ -407,6 +436,7 @@ function App(): React.JSX.Element {
     activityToast,
     notificationsEnabled,
     quietHoursEnabled,
+    activityPauseState.enabled,
     breakConfig.enabled,
     blinkConfig.enabled,
     hydrationConfig.enabled,
@@ -418,7 +448,8 @@ function App(): React.JSX.Element {
 
     const currentHour = new Date().getHours()
     const inQuietHours = currentHour >= 22 || currentHour < 7
-    const remindersBlocked = !notificationsEnabled || (quietHoursEnabled && inQuietHours)
+    const remindersBlocked =
+      !notificationsEnabled || (quietHoursEnabled && inQuietHours) || activityPauseState.enabled
     if (remindersBlocked) return
 
     if (machineUsageSnoozeUntil && Date.now() < machineUsageSnoozeUntil) return
@@ -435,6 +466,7 @@ function App(): React.JSX.Element {
     uptimeSeconds,
     notificationsEnabled,
     quietHoursEnabled,
+    activityPauseState.enabled,
     machineUsageSnoozeUntil,
     machineUsageAlert,
     dismissedMachineUsageThresholds
@@ -510,6 +542,33 @@ function App(): React.JSX.Element {
 
   const updateActivityPacingConfig = (patch: Partial<ActivityPacingConfig>): void => {
     setActivityPacingConfig((prev) => ({ ...prev, ...patch }))
+  }
+
+  const pauseActivitiesFor = (minutes: number | null): void => {
+    const request =
+      minutes === null ? window.api.pauseActivities(null) : window.api.pauseActivities(minutes)
+    void request.then(setActivityPauseState).catch(() => undefined)
+  }
+
+  const resumeActivitiesNow = (): void => {
+    void window.api
+      .clearActivityPause()
+      .then(setActivityPauseState)
+      .catch(() => undefined)
+  }
+
+  const getActivityPauseStatusText = (): string => {
+    if (!activityPauseState.enabled) return 'Activities are active'
+    if (activityPauseState.resumeAt === null) return 'Activities are paused forever'
+
+    const remainingMs = Math.max(0, activityPauseState.resumeAt - currentTime.getTime())
+    const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000))
+    if (remainingMinutes >= 60) {
+      const hours = Math.floor(remainingMinutes / 60)
+      const minutes = remainingMinutes % 60
+      return minutes === 0 ? `Paused for ${hours}h` : `Paused for ${hours}h ${minutes}m`
+    }
+    return `Paused for ${remainingMinutes}m`
   }
 
   const toggleAutoStart = (): void => {
@@ -1061,6 +1120,67 @@ function App(): React.JSX.Element {
                   </svg>
                 }
               />
+            </div>
+
+            <div className={`${cardClass} p-5 md:col-span-2`}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    Pause all activities
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Mute break, blink, hydration, drink, and overlay reminders while you record,
+                    present, or need uninterrupted focus.
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    activityPauseState.enabled
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300'
+                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                  }`}
+                >
+                  {getActivityPauseStatusText()}
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                  onClick={() => pauseActivitiesFor(60)}
+                >
+                  Pause 1 hour
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                  onClick={() => pauseActivitiesFor(180)}
+                >
+                  Pause 3 hours
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                  onClick={() => pauseActivitiesFor(480)}
+                >
+                  Pause 8 hours
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:border-slate-500/60"
+                  onClick={() => pauseActivitiesFor(null)}
+                >
+                  Pause forever
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200 dark:hover:border-emerald-400/70"
+                  onClick={resumeActivitiesNow}
+                  disabled={!activityPauseState.enabled}
+                >
+                  Resume now
+                </button>
+              </div>
             </div>
 
             <div className={`${cardClass} p-5`}>

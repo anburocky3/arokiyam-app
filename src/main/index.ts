@@ -18,6 +18,7 @@ import { autoUpdater } from 'electron-updater'
 import { createStressMonitor } from './stressMonitor'
 import type {
   ActivityPacingConfig,
+  ActivityPauseState,
   BlinkConfig,
   BreakConfig,
   DrinkConfig,
@@ -60,10 +61,16 @@ const defaultActivityPacingConfig: ActivityPacingConfig = {
   minimumGapMinutes: 5
 }
 
+const defaultActivityPauseState: ActivityPauseState = {
+  enabled: false,
+  resumeAt: null
+}
+
 let mainWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
 let stressMonitor: ReturnType<typeof createStressMonitor> | null = null
 let tray: Tray | null = null
+let activityPauseExpiryTimer: NodeJS.Timeout | null = null
 let isQuitting = false
 let updateReadyToInstall = false
 let updateDownloadProgress = 0
@@ -142,6 +149,7 @@ type AppPreferences = {
   hydrationConfig: HydrationConfig
   drinkConfig: DrinkConfig
   activityPacingConfig: ActivityPacingConfig
+  activityPauseState: ActivityPauseState
 }
 
 const getDefaultDisplayName = (): string => {
@@ -163,8 +171,11 @@ const defaultAppPreferences: AppPreferences = {
   blinkConfig: defaultBlinkConfig,
   hydrationConfig: defaultHydrationConfig,
   drinkConfig: defaultDrinkConfig,
-  activityPacingConfig: defaultActivityPacingConfig
+  activityPacingConfig: defaultActivityPacingConfig,
+  activityPauseState: defaultActivityPauseState
 }
+
+let appPreferences: AppPreferences = defaultAppPreferences
 
 const preferencesPath = join(app.getPath('userData'), 'preferences.json')
 
@@ -173,6 +184,9 @@ const readPreferences = (): AppPreferences => {
     if (!existsSync(preferencesPath)) return defaultAppPreferences
     const raw = readFileSync(preferencesPath, 'utf-8')
     const parsed = JSON.parse(raw) as Partial<AppPreferences>
+    const activityPauseState = normalizeActivityPauseState(
+      parsed.activityPauseState ?? defaultActivityPauseState
+    )
     return {
       ...defaultAppPreferences,
       ...parsed,
@@ -195,7 +209,8 @@ const readPreferences = (): AppPreferences => {
       activityPacingConfig: {
         ...defaultAppPreferences.activityPacingConfig,
         ...parsed.activityPacingConfig
-      }
+      },
+      activityPauseState
     }
   } catch {
     return defaultAppPreferences
@@ -220,14 +235,126 @@ const shouldShowNotification = (preferences: AppPreferences): boolean => {
   if (!Notification.isSupported()) return false
   if (!preferences.notificationsEnabled) return false
   if (preferences.quietHoursEnabled && isInQuietHours()) return false
+  if (getActiveActivityPauseState(preferences).enabled) return false
   return true
 }
 
 const shouldShowReminder = (preferences: AppPreferences): boolean => {
   if (!preferences.notificationsEnabled) return false
   if (preferences.quietHoursEnabled && isInQuietHours()) return false
+  if (getActiveActivityPauseState(preferences).enabled) return false
   return true
 }
+
+const normalizeActivityPauseState = (
+  state: ActivityPauseState,
+  now = Date.now()
+): ActivityPauseState => {
+  if (!state.enabled) return defaultActivityPauseState
+  if (state.resumeAt !== null && state.resumeAt <= now) return defaultActivityPauseState
+  return {
+    enabled: true,
+    resumeAt: state.resumeAt
+  }
+}
+
+const getActiveActivityPauseState = (preferences = appPreferences): ActivityPauseState =>
+  normalizeActivityPauseState(preferences.activityPauseState)
+
+const getActivityPauseStatusText = (preferences = appPreferences): string => {
+  const state = getActiveActivityPauseState(preferences)
+  if (!state.enabled) return 'Activities active'
+  if (state.resumeAt === null) return 'Activities paused forever'
+  return `Activities paused until ${new Date(state.resumeAt).toLocaleString()}`
+}
+
+const broadcastActivityPauseState = (): void => {
+  const state = getActiveActivityPauseState()
+  BrowserWindow.getAllWindows().forEach((window) => {
+    window.webContents.send('settings:activityPause', state)
+  })
+}
+
+const clearActivityPauseExpiryTimer = (): void => {
+  if (activityPauseExpiryTimer) {
+    clearTimeout(activityPauseExpiryTimer)
+    activityPauseExpiryTimer = null
+  }
+}
+
+const updateTrayPauseState = (): void => {
+  if (!tray) return
+  tray.setToolTip(`Arokiyam - ${getActivityPauseStatusText()}`)
+  tray.setContextMenu(buildTrayMenu())
+}
+
+const setActivityPauseState = (nextState: ActivityPauseState): ActivityPauseState => {
+  const normalized = normalizeActivityPauseState(nextState)
+  appPreferences = {
+    ...appPreferences,
+    activityPauseState: normalized
+  }
+  writePreferences(appPreferences)
+  stressMonitor?.setActivitySuppression(normalized)
+  clearActivityPauseExpiryTimer()
+
+  if (normalized.enabled && normalized.resumeAt !== null) {
+    const delay = Math.max(0, normalized.resumeAt - Date.now())
+    activityPauseExpiryTimer = setTimeout(() => {
+      setActivityPauseState(defaultActivityPauseState)
+    }, delay)
+  }
+
+  broadcastActivityPauseState()
+  updateTrayPauseState()
+  return normalized
+}
+
+const pauseActivitiesForMinutes = (minutes: number | null): ActivityPauseState => {
+  if (minutes === null) {
+    return setActivityPauseState({ enabled: true, resumeAt: null })
+  }
+  return setActivityPauseState({ enabled: true, resumeAt: Date.now() + minutes * 60 * 1000 })
+}
+
+const resumeActivities = (): ActivityPauseState => setActivityPauseState(defaultActivityPauseState)
+
+const buildTrayMenu = (): ReturnType<typeof Menu.buildFromTemplate> =>
+  Menu.buildFromTemplate([
+    { label: 'Show Arokiyam', click: () => showMainWindow() },
+    { label: 'Hide', click: () => hideMainWindowToTray() },
+    { type: 'separator' },
+    {
+      label: 'Pause activities',
+      submenu: [
+        { label: 'For 1 hour', click: () => pauseActivitiesForMinutes(60) },
+        { label: 'For 3 hours', click: () => pauseActivitiesForMinutes(180) },
+        { label: 'For 8 hours', click: () => pauseActivitiesForMinutes(480) },
+        { label: 'Forever', click: () => pauseActivitiesForMinutes(null) },
+        { type: 'separator' },
+        {
+          label: 'Resume now',
+          enabled: getActiveActivityPauseState().enabled,
+          click: () => resumeActivities()
+        }
+      ]
+    },
+    { type: 'separator' },
+    {
+      label: getActivityPauseStatusText(),
+      enabled: false
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true
+        overlayWindow?.destroy()
+        mainWindow?.close()
+        app.quit()
+      }
+    }
+  ])
 
 const ensureMacInputPermission = (preferences: AppPreferences): boolean => {
   if (process.platform !== 'darwin') return true
@@ -323,24 +450,7 @@ const createTray = (): void => {
   const iconImage = nativeImage.createFromPath(iconPath)
   const trayIcon = iconImage.isEmpty() ? nativeImage.createFromPath(getWindowIconPath()) : iconImage
   tray = new Tray(trayIcon)
-  tray.setToolTip('Arokiyam')
-
-  const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show Arokiyam', click: () => showMainWindow() },
-    { label: 'Hide', click: () => hideMainWindowToTray() },
-    { type: 'separator' },
-    {
-      label: 'Quit',
-      click: () => {
-        isQuitting = true
-        overlayWindow?.destroy()
-        mainWindow?.close()
-        app.quit()
-      }
-    }
-  ])
-
-  tray.setContextMenu(contextMenu)
+  updateTrayPauseState()
   tray.on('double-click', () => showMainWindow())
 }
 
@@ -565,9 +675,20 @@ app.whenReady().then(() => {
       linuxApp.setDesktopName(`${APP_DISPLAY_NAME}.desktop`)
     }
   }
-  let appPreferences = readPreferences()
+  appPreferences = readPreferences()
   if (!appPreferences.displayName || !appPreferences.displayName.trim()) {
     appPreferences = { ...appPreferences, displayName: getDefaultDisplayName() }
+    writePreferences(appPreferences)
+  }
+  const normalizedPauseState = normalizeActivityPauseState(appPreferences.activityPauseState)
+  if (
+    normalizedPauseState.enabled !== appPreferences.activityPauseState.enabled ||
+    normalizedPauseState.resumeAt !== appPreferences.activityPauseState.resumeAt
+  ) {
+    appPreferences = {
+      ...appPreferences,
+      activityPauseState: normalizedPauseState
+    }
     writePreferences(appPreferences)
   }
 
@@ -612,6 +733,7 @@ app.whenReady().then(() => {
   stressMonitor.setHydrationConfig(appPreferences.hydrationConfig)
   stressMonitor.setDrinkConfig(appPreferences.drinkConfig)
   stressMonitor.setActivityPacingConfig(appPreferences.activityPacingConfig)
+  setActivityPauseState(appPreferences.activityPauseState)
   let previousActivityMode: OverlayState['mode'] = 'normal'
 
   const broadcast = <T>(channel: string, payload: T): void => {
@@ -728,6 +850,11 @@ app.whenReady().then(() => {
     writePreferences(appPreferences)
     return appPreferences.quietHoursEnabled
   })
+  ipcMain.handle('settings:getActivityPauseState', () => getActiveActivityPauseState())
+  ipcMain.handle('settings:pauseActivities', (_event, minutes: number | null) => {
+    return pauseActivitiesForMinutes(minutes)
+  })
+  ipcMain.handle('settings:clearActivityPause', () => resumeActivities())
   ipcMain.handle('settings:getDisplayName', () => appPreferences.displayName)
   ipcMain.handle('settings:setDisplayName', (_event, name: string) => {
     const normalized = (name ?? '').trim()

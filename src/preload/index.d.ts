@@ -1,6 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
   ActivityPacingConfig,
+  ActivityPauseState,
   BlinkConfig,
   BreakConfig,
   DrinkConfig,
@@ -30,6 +31,9 @@ declare global {
       setNotificationsEnabled: (enabled: boolean) => Promise<boolean>
       getQuietHoursEnabled: () => Promise<boolean>
       setQuietHoursEnabled: (enabled: boolean) => Promise<boolean>
+      getActivityPauseState: () => Promise<ActivityPauseState>
+      pauseActivities: (minutes: number | null) => Promise<ActivityPauseState>
+      clearActivityPause: () => Promise<ActivityPauseState>
       getDisplayName: () => Promise<string>
       setDisplayName: (name: string) => Promise<string>
       getUpdateState: () => Promise<{
@@ -60,14 +64,17 @@ declare global {
       completeDrink: () => Promise<void>
       snoozeDrink: () => Promise<void>
       setActivityPacingConfig: (config: ActivityPacingConfig) => Promise<void>
+      onActivityPauseState: (callback: (state: ActivityPauseState) => void) => () => void
       onStressUpdate: (callback: (snapshot: StressSnapshot) => void) => () => void
       onOverlayState: (callback: (state: OverlayState) => void) => () => void
       onOverlayToast: (callback: (toast: OverlayToast) => void) => () => void
-      onUpdateStatus: (callback: (status: {
-        updateReady: boolean
-        downloadProgress: number
-        message: string
-      }) => void) => () => void
+      onUpdateStatus: (
+        callback: (status: {
+          updateReady: boolean
+          downloadProgress: number
+          message: string
+        }) => void
+      ) => () => void
     }
   }
 }

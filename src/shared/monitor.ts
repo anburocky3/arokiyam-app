@@ -64,6 +64,11 @@ export type ActivityPacingConfig = {
   minimumGapMinutes: number
 }
 
+export type ActivityPauseState = {
+  enabled: boolean
+  resumeAt: number | null
+}
+
 export type OverlayToast = {
   message: string
   expiresAt: number

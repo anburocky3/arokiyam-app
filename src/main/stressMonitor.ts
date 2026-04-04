@@ -1,6 +1,7 @@
 import { uIOhook } from 'uiohook-napi'
 import type {
   ActivityPacingConfig,
+  ActivityPauseState,
   BlinkConfig,
   BreakConfig,
   DrinkConfig,
@@ -31,6 +32,7 @@ type StressMonitor = {
   completeDrink: () => void
   snoozeDrink: () => void
   setActivityPacingConfig: (config: ActivityPacingConfig) => void
+  setActivitySuppression: (state: ActivityPauseState) => void
   getSnapshot: () => StressSnapshot
   onUpdate: (listener: Listener<StressSnapshot>) => () => void
   onOverlayState: (listener: Listener<OverlayState>) => () => void
@@ -180,6 +182,10 @@ export const createStressMonitor = (): StressMonitor => {
   let lastDrinkAt: number | null = null
   let activityPacingConfig = defaultActivityPacingConfig
   let nextActivityAllowedAt = Date.now()
+  let activitySuppressionState: ActivityPauseState = {
+    enabled: false,
+    resumeAt: null
+  }
 
   let lastScrollAt: number | null = null
   let scrollStreakStart: number | null = null
@@ -241,6 +247,24 @@ export const createStressMonitor = (): StressMonitor => {
     overlayListeners.forEach((listener) => listener(state))
   }
 
+  const clearAllActiveActivities = (): void => {
+    isBreakActive = false
+    breakEndsAt = null
+    isBlinkActive = false
+    blinkEndsAt = null
+    isHydrationActive = false
+    hydrationEndsAt = null
+    isDrinkActive = false
+    drinkEndsAt = null
+  }
+
+  const rescheduleAllActivitiesFromNow = (baseTime = Date.now()): void => {
+    nextBreakAt = baseTime + computeNextBreakMs(breakConfig, lastStressLevel)
+    scheduleNextBlink(baseTime)
+    scheduleNextHydration(baseTime)
+    scheduleNextDrink(baseTime)
+  }
+
   const scheduleNextBlink = (baseTime = Date.now()): void => {
     if (!blinkConfig.enabled) {
       nextBlinkAt = baseTime + 24 * 60 * 60 * 1000
@@ -285,7 +309,12 @@ export const createStressMonitor = (): StressMonitor => {
     durationMs = breakConfig.durationSeconds * 1000,
     ignorePacing = false
   ): void => {
-    if (isBreakActive || (!ignorePacing && !canStartAnotherActivity())) return
+    if (
+      activitySuppressionState.enabled ||
+      isBreakActive ||
+      (!ignorePacing && !canStartAnotherActivity())
+    )
+      return
     if (isBlinkActive) {
       isBlinkActive = false
       blinkEndsAt = null
@@ -320,6 +349,7 @@ export const createStressMonitor = (): StressMonitor => {
 
   const startBlink = (ignorePacing = false): void => {
     if (
+      activitySuppressionState.enabled ||
       isBlinkActive ||
       isBreakActive ||
       isHydrationActive ||
@@ -336,6 +366,7 @@ export const createStressMonitor = (): StressMonitor => {
 
   const startHydration = (ignorePacing = false): void => {
     if (
+      activitySuppressionState.enabled ||
       isHydrationActive ||
       isBreakActive ||
       isBlinkActive ||
@@ -352,6 +383,7 @@ export const createStressMonitor = (): StressMonitor => {
 
   const startDrink = (ignorePacing = false): void => {
     if (
+      activitySuppressionState.enabled ||
       isDrinkActive ||
       isBreakActive ||
       isBlinkActive ||
@@ -484,6 +516,14 @@ export const createStressMonitor = (): StressMonitor => {
     statsInterval = setInterval(emitSnapshot, 10_000)
     breakInterval = setInterval(() => {
       const now = Date.now()
+      if (activitySuppressionState.enabled) {
+        if (isBreakActive || isBlinkActive || isHydrationActive || isDrinkActive) {
+          clearAllActiveActivities()
+          emitOverlayState()
+          emitSnapshot()
+        }
+        return
+      }
       if (isBreakActive && breakEndsAt && now >= breakEndsAt) {
         finishBreak()
       }
@@ -628,6 +668,29 @@ export const createStressMonitor = (): StressMonitor => {
     activityPacingConfig = clampActivityPacingConfig(config)
   }
 
+  const setActivitySuppression = (state: ActivityPauseState): void => {
+    const nextState: ActivityPauseState = {
+      enabled: state.enabled,
+      resumeAt: state.resumeAt
+    }
+    const wasSuppressed = activitySuppressionState.enabled
+    activitySuppressionState = nextState
+
+    if (activitySuppressionState.enabled) {
+      if (isBreakActive || isBlinkActive || isHydrationActive || isDrinkActive) {
+        clearAllActiveActivities()
+        emitOverlayState()
+        emitSnapshot()
+      }
+      return
+    }
+
+    if (wasSuppressed) {
+      rescheduleAllActivitiesFromNow()
+      emitOverlayState()
+    }
+  }
+
   const skipBlink = (): void => {
     if (!isBlinkActive) return
     finishBlink(true)
@@ -727,6 +790,7 @@ export const createStressMonitor = (): StressMonitor => {
     completeDrink,
     snoozeDrink,
     setActivityPacingConfig,
+    setActivitySuppression,
     getSnapshot,
     onUpdate,
     onOverlayState,
