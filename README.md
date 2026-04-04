@@ -63,6 +63,10 @@ Latest stable release: **v1.2.0**
 - Auto-start toggle and desktop notification controls.
 - Cross-platform packaging and tag-based GitHub Release automation.
 
+## Changelog
+
+- Full change history: [CHANGELOG.md](./CHANGELOG.md)
+
 ## Tech Stack
 
 - Electron

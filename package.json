@@ -1,7 +1,7 @@
 {
   "name": "arokiyam",
   "productName": "Arokiyam",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Arokiyam is a desktop application designed to help users track their health and wellness. It provides features such as medication reminders, symptom tracking, and health data visualization to assist users in managing their health effectively.",
   "main": "./out/main/index.js",
   "author": "Anbuselvan Annamalai",
@@ -33,6 +33,8 @@
     "start:landing": "bun --cwd landing start"
   },
   "dependencies": {
+    "@fontsource/fraunces": "^5.2.9",
+    "@fontsource/space-grotesk": "^5.2.10",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@tailwindcss/vite": "^4.1.18",
