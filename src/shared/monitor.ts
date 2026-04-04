@@ -67,6 +67,7 @@ export type ActivityPacingConfig = {
 export type ActivityPauseState = {
   enabled: boolean
   resumeAt: number | null
+  source: 'manual' | 'auto' | 'combined'
 }
 
 export type OverlayToast = {

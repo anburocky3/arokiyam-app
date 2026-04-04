@@ -10,6 +10,7 @@ import {
   Notification,
   systemPreferences
 } from 'electron'
+import { execFile } from 'child_process'
 import os from 'os'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
@@ -63,7 +64,8 @@ const defaultActivityPacingConfig: ActivityPacingConfig = {
 
 const defaultActivityPauseState: ActivityPauseState = {
   enabled: false,
-  resumeAt: null
+  resumeAt: null,
+  source: 'manual'
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -71,6 +73,10 @@ let overlayWindow: BrowserWindow | null = null
 let stressMonitor: ReturnType<typeof createStressMonitor> | null = null
 let tray: Tray | null = null
 let activityPauseExpiryTimer: NodeJS.Timeout | null = null
+let activityPauseAutoMonitorTimer: NodeJS.Timeout | null = null
+let activityPauseAutoDetected = false
+let activityPauseAutoPauseHits = 0
+let activityPauseAutoClearHits = 0
 let isQuitting = false
 let updateReadyToInstall = false
 let updateDownloadProgress = 0
@@ -235,44 +241,174 @@ const shouldShowNotification = (preferences: AppPreferences): boolean => {
   if (!Notification.isSupported()) return false
   if (!preferences.notificationsEnabled) return false
   if (preferences.quietHoursEnabled && isInQuietHours()) return false
-  if (getActiveActivityPauseState(preferences).enabled) return false
+  if (getEffectiveActivityPauseState(preferences).enabled) return false
   return true
 }
 
 const shouldShowReminder = (preferences: AppPreferences): boolean => {
   if (!preferences.notificationsEnabled) return false
   if (preferences.quietHoursEnabled && isInQuietHours()) return false
-  if (getActiveActivityPauseState(preferences).enabled) return false
+  if (getEffectiveActivityPauseState(preferences).enabled) return false
   return true
 }
 
 const normalizeActivityPauseState = (
-  state: ActivityPauseState,
+  state: Partial<ActivityPauseState>,
   now = Date.now()
 ): ActivityPauseState => {
   if (!state.enabled) return defaultActivityPauseState
-  if (state.resumeAt !== null && state.resumeAt <= now) return defaultActivityPauseState
+  const resumeAt = state.resumeAt ?? null
+  if (resumeAt !== null && resumeAt <= now) return defaultActivityPauseState
   return {
     enabled: true,
-    resumeAt: state.resumeAt
+    resumeAt,
+    source: 'manual'
   }
 }
 
 const getActiveActivityPauseState = (preferences = appPreferences): ActivityPauseState =>
   normalizeActivityPauseState(preferences.activityPauseState)
 
+const getEffectiveActivityPauseState = (preferences = appPreferences): ActivityPauseState => {
+  const manualState = getActiveActivityPauseState(preferences)
+  if (manualState.enabled && activityPauseAutoDetected) {
+    return {
+      ...manualState,
+      source: 'combined'
+    }
+  }
+  if (manualState.enabled) {
+    return manualState
+  }
+  if (activityPauseAutoDetected) {
+    return {
+      enabled: true,
+      resumeAt: null,
+      source: 'auto'
+    }
+  }
+  return defaultActivityPauseState
+}
+
 const getActivityPauseStatusText = (preferences = appPreferences): string => {
-  const state = getActiveActivityPauseState(preferences)
+  const state = getEffectiveActivityPauseState(preferences)
   if (!state.enabled) return 'Activities active'
+  if (state.source === 'auto') return 'Auto-paused on Windows'
+  if (state.source === 'combined') {
+    if (state.resumeAt === null) return 'Manually paused and auto-detected activity is active'
+    return `Paused until ${new Date(state.resumeAt).toLocaleString()} and auto-detected activity is active`
+  }
   if (state.resumeAt === null) return 'Activities paused forever'
   return `Activities paused until ${new Date(state.resumeAt).toLocaleString()}`
 }
 
 const broadcastActivityPauseState = (): void => {
-  const state = getActiveActivityPauseState()
+  const state = getEffectiveActivityPauseState()
   BrowserWindow.getAllWindows().forEach((window) => {
     window.webContents.send('settings:activityPause', state)
   })
+}
+
+type WindowsForegroundActivity = {
+  processName: string
+  title: string
+  isFullscreen: boolean
+}
+
+const WINDOWS_AUTO_PAUSE_POLL_MS = 5_000
+const WINDOWS_AUTO_PAUSE_DEBOUNCE_COUNT = 2
+
+const WINDOWS_OBS_ACTIVITY_HINTS = [
+  'obs',
+  'streamlabs',
+  'xsplit',
+  'bandicam',
+  'camtasia',
+  'captura',
+  'screenrec',
+  'gamebar'
+]
+
+const probeWindowsForegroundActivity = async (): Promise<WindowsForegroundActivity | null> => {
+  if (process.platform !== 'win32') return null
+
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class Win32 {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+  [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+  [DllImport("user32.dll")] public static extern int GetSystemMetrics(int nIndex);
+}
+public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+"@
+$handle = [Win32]::GetForegroundWindow()
+if ($handle -eq [IntPtr]::Zero) { exit 0 }
+[uint32]$pid = 0
+[void][Win32]::GetWindowThreadProcessId($handle, [ref]$pid)
+$process = Get-Process -Id $pid -ErrorAction SilentlyContinue
+if (-not $process) { exit 0 }
+$rect = New-Object RECT
+[void][Win32]::GetWindowRect($handle, [ref]$rect)
+$screenWidth = [Win32]::GetSystemMetrics(0)
+$screenHeight = [Win32]::GetSystemMetrics(1)
+$titleBuilder = New-Object System.Text.StringBuilder 512
+[void][Win32]::GetWindowText($handle, $titleBuilder, $titleBuilder.Capacity)
+[pscustomobject]@{
+  processName = $process.ProcessName
+  title = $titleBuilder.ToString()
+  isFullscreen = ($rect.Left -le 0 -and $rect.Top -le 0 -and $rect.Right -ge $screenWidth -and $rect.Bottom -ge $screenHeight)
+} | ConvertTo-Json -Compress
+`
+
+  return await new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      { windowsHide: true, timeout: 2500, maxBuffer: 16 * 1024 },
+      (error, stdout) => {
+        if (error) {
+          resolve(null)
+          return
+        }
+        const trimmed = stdout.trim()
+        if (!trimmed) {
+          resolve(null)
+          return
+        }
+        try {
+          const parsed = JSON.parse(trimmed) as WindowsForegroundActivity
+          resolve(parsed)
+        } catch {
+          resolve(null)
+        }
+      }
+    )
+  })
+}
+
+const shouldAutoPauseForWindowsActivity = (activity: WindowsForegroundActivity | null): boolean => {
+  if (!activity) return false
+  const processName = activity.processName.toLowerCase()
+  const title = activity.title.toLowerCase()
+  if (
+    WINDOWS_OBS_ACTIVITY_HINTS.some((hint) => processName.includes(hint) || title.includes(hint))
+  ) {
+    return true
+  }
+  return activity.isFullscreen
+}
+
+const syncActivityPauseState = (): ActivityPauseState => {
+  const effectiveState = getEffectiveActivityPauseState()
+  stressMonitor?.setActivitySuppression(effectiveState)
+  broadcastActivityPauseState()
+  updateTrayPauseState()
+  return effectiveState
 }
 
 const clearActivityPauseExpiryTimer = (): void => {
@@ -295,7 +431,6 @@ const setActivityPauseState = (nextState: ActivityPauseState): ActivityPauseStat
     activityPauseState: normalized
   }
   writePreferences(appPreferences)
-  stressMonitor?.setActivitySuppression(normalized)
   clearActivityPauseExpiryTimer()
 
   if (normalized.enabled && normalized.resumeAt !== null) {
@@ -305,19 +440,70 @@ const setActivityPauseState = (nextState: ActivityPauseState): ActivityPauseStat
     }, delay)
   }
 
-  broadcastActivityPauseState()
-  updateTrayPauseState()
+  syncActivityPauseState()
   return normalized
 }
 
 const pauseActivitiesForMinutes = (minutes: number | null): ActivityPauseState => {
   if (minutes === null) {
-    return setActivityPauseState({ enabled: true, resumeAt: null })
+    return setActivityPauseState({ enabled: true, resumeAt: null, source: 'manual' })
   }
-  return setActivityPauseState({ enabled: true, resumeAt: Date.now() + minutes * 60 * 1000 })
+  return setActivityPauseState({
+    enabled: true,
+    resumeAt: Date.now() + minutes * 60 * 1000,
+    source: 'manual'
+  })
 }
 
 const resumeActivities = (): ActivityPauseState => setActivityPauseState(defaultActivityPauseState)
+
+const refreshWindowsAutoPauseState = async (): Promise<void> => {
+  if (process.platform !== 'win32') return
+
+  const activity = await probeWindowsForegroundActivity()
+  if (!activity) return
+
+  const shouldPause = shouldAutoPauseForWindowsActivity(activity)
+  if (shouldPause) {
+    activityPauseAutoPauseHits += 1
+    activityPauseAutoClearHits = 0
+    if (
+      !activityPauseAutoDetected &&
+      activityPauseAutoPauseHits >= WINDOWS_AUTO_PAUSE_DEBOUNCE_COUNT
+    ) {
+      activityPauseAutoDetected = true
+      syncActivityPauseState()
+    }
+    return
+  }
+
+  activityPauseAutoClearHits += 1
+  activityPauseAutoPauseHits = 0
+  if (
+    activityPauseAutoDetected &&
+    activityPauseAutoClearHits >= WINDOWS_AUTO_PAUSE_DEBOUNCE_COUNT
+  ) {
+    activityPauseAutoDetected = false
+    syncActivityPauseState()
+  }
+}
+
+const startWindowsAutoPauseMonitor = (): void => {
+  if (process.platform !== 'win32' || activityPauseAutoMonitorTimer) return
+  void refreshWindowsAutoPauseState()
+  activityPauseAutoMonitorTimer = setInterval(() => {
+    void refreshWindowsAutoPauseState()
+  }, WINDOWS_AUTO_PAUSE_POLL_MS)
+}
+
+const stopWindowsAutoPauseMonitor = (): void => {
+  if (activityPauseAutoMonitorTimer) {
+    clearInterval(activityPauseAutoMonitorTimer)
+    activityPauseAutoMonitorTimer = null
+  }
+  activityPauseAutoPauseHits = 0
+  activityPauseAutoClearHits = 0
+}
 
 const buildTrayMenu = (): ReturnType<typeof Menu.buildFromTemplate> =>
   Menu.buildFromTemplate([
@@ -334,7 +520,7 @@ const buildTrayMenu = (): ReturnType<typeof Menu.buildFromTemplate> =>
         { type: 'separator' },
         {
           label: 'Resume now',
-          enabled: getActiveActivityPauseState().enabled,
+          enabled: getEffectiveActivityPauseState().enabled,
           click: () => resumeActivities()
         }
       ]
@@ -850,7 +1036,7 @@ app.whenReady().then(() => {
     writePreferences(appPreferences)
     return appPreferences.quietHoursEnabled
   })
-  ipcMain.handle('settings:getActivityPauseState', () => getActiveActivityPauseState())
+  ipcMain.handle('settings:getActivityPauseState', () => getEffectiveActivityPauseState())
   ipcMain.handle('settings:pauseActivities', (_event, minutes: number | null) => {
     return pauseActivitiesForMinutes(minutes)
   })
@@ -946,6 +1132,7 @@ app.whenReady().then(() => {
   createWindow()
   createOverlayWindow()
   createTray()
+  startWindowsAutoPauseMonitor()
   ensureMacInputPermission(appPreferences)
   stressMonitor.start()
   setupAutoUpdates()
@@ -971,6 +1158,8 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true
+  clearActivityPauseExpiryTimer()
+  stopWindowsAutoPauseMonitor()
   stressMonitor?.stop()
 })
 

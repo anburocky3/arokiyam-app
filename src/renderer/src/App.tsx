@@ -26,6 +26,7 @@ type ActivityPacingConfig = {
 type ActivityPauseState = {
   enabled: boolean
   resumeAt: number | null
+  source: 'manual' | 'auto' | 'combined'
 }
 
 type HydrationConfig = {
@@ -79,7 +80,8 @@ const defaultActivityPacingConfig: ActivityPacingConfig = {
 
 const defaultActivityPauseState: ActivityPauseState = {
   enabled: false,
-  resumeAt: null
+  resumeAt: null,
+  source: 'manual'
 }
 
 const defaultHealthStrictness: HealthStrictness = 'basic'
@@ -559,6 +561,12 @@ function App(): React.JSX.Element {
 
   const getActivityPauseStatusText = (): string => {
     if (!activityPauseState.enabled) return 'Activities are active'
+    if (activityPauseState.source === 'auto') return 'Auto-paused on Windows'
+    if (activityPauseState.source === 'combined') {
+      if (activityPauseState.resumeAt === null)
+        return 'Manual pause + Windows auto-detection active'
+      return 'Manual pause active and Windows auto-detection is active'
+    }
     if (activityPauseState.resumeAt === null) return 'Activities are paused forever'
 
     const remainingMs = Math.max(0, activityPauseState.resumeAt - currentTime.getTime())

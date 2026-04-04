@@ -184,7 +184,8 @@ export const createStressMonitor = (): StressMonitor => {
   let nextActivityAllowedAt = Date.now()
   let activitySuppressionState: ActivityPauseState = {
     enabled: false,
-    resumeAt: null
+    resumeAt: null,
+    source: 'manual'
   }
 
   let lastScrollAt: number | null = null
@@ -671,7 +672,8 @@ export const createStressMonitor = (): StressMonitor => {
   const setActivitySuppression = (state: ActivityPauseState): void => {
     const nextState: ActivityPauseState = {
       enabled: state.enabled,
-      resumeAt: state.resumeAt
+      resumeAt: state.resumeAt,
+      source: state.source
     }
     const wasSuppressed = activitySuppressionState.enabled
     activitySuppressionState = nextState
