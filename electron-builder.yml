@@ -21,6 +21,16 @@ extraResources:
 win:
   executableName: arokiyam
   icon: build/icons/icon.ico
+appx:
+  artifactName: ${name}-${version}.${ext}
+  displayName: ${productName}
+  publisherDisplayName: ${env.WINDOWS_STORE_PUBLISHER_DISPLAY_NAME}
+  identityName: ${env.WINDOWS_STORE_IDENTITY_NAME}
+  publisher: ${env.WINDOWS_STORE_PUBLISHER}
+  applicationId: ${env.WINDOWS_STORE_APPLICATION_ID}
+  backgroundColor: transparent
+  languages:
+    - en-US
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

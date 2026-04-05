@@ -114,6 +114,12 @@ jobs:
           generate_release_notes: true
           files: |
             release-assets/**/*-setup.exe
+            release-assets/**/*.appx
+            release-assets/**/*.appxbundle
+            release-assets/**/*.msix
+            release-assets/**/*.msixbundle
+            release-assets/**/*.msixupload
+            release-assets/**/*.appxupload
             release-assets/**/latest*.yml
             release-assets/**/*.blockmap
             release-assets/**/*.dmg
