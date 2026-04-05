@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 
 export default function Footer() {
   return (
@@ -115,7 +116,7 @@ export default function Footer() {
             </a>
           </p>
           <p className="text-[0.8rem]" style={{ color: 'var(--text-muted)' }}>
-            All Rights Reserved © 2026
+            <Link href="/privacy-policy">Privacy Policy</Link> | All Rights Reserved © 2026
           </p>
         </div>
       </div>
