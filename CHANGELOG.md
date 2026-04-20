@@ -4,11 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is inspired by Keep a Changelog, and this project follows Semantic Versioning.
 
-## [Unreleased]
+## [1.5.0] - 2026-04-21
 
 ### Added
 
-- Placeholder for upcoming changes.
+- Fixes auto-start when installed through Microsoft store
 
 ## [1.4.0] - 2026-04-04
 
