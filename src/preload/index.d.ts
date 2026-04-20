@@ -24,7 +24,11 @@ declare global {
         freeMem: number
         uptime: number
       }>
-      getAppBuildInfo: () => Promise<{ version: string; channel: 'development' | 'production' }>
+      getAppBuildInfo: () => Promise<{
+        version: string
+        channel: 'development' | 'production'
+        isStore: boolean
+      }>
       getAutoStart: () => Promise<boolean>
       setAutoStart: (enabled: boolean) => Promise<boolean>
       getNotificationsEnabled: () => Promise<boolean>

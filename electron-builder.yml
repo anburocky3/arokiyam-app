@@ -24,6 +24,7 @@ win:
 appx:
   artifactName: ${name}-${version}.${ext}
   displayName: ${productName}
+  addAutoLaunchExtension: true
   publisherDisplayName: ${env.WINDOWS_STORE_PUBLISHER_DISPLAY_NAME}
   identityName: ${env.WINDOWS_STORE_IDENTITY_NAME}
   publisher: ${env.WINDOWS_STORE_PUBLISHER}

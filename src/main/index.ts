@@ -909,7 +909,8 @@ app.whenReady().then(() => {
   ipcMain.handle('app:getBuildInfo', () => {
     return {
       version: app.getVersion(),
-      channel: app.isPackaged ? 'production' : 'development'
+      channel: app.isPackaged ? 'production' : 'development',
+      isStore: Boolean((process as NodeJS.Process & { windowsStore?: boolean }).windowsStore)
     }
   })
 

@@ -19,6 +19,7 @@ const api = {
     ipcRenderer.invoke('app:getBuildInfo') as Promise<{
       version: string
       channel: 'development' | 'production'
+      isStore: boolean
     }>,
   getAutoStart: () => ipcRenderer.invoke('settings:getAutoStart') as Promise<boolean>,
   setAutoStart: (enabled: boolean) =>

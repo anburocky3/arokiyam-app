@@ -192,6 +192,7 @@ function App(): React.JSX.Element {
   const [buildInfo, setBuildInfo] = useState<{
     version: string
     channel: 'development' | 'production'
+    isStore?: boolean
   } | null>(null)
   const [updateReady, setUpdateReady] = useState(false)
   const [updateDownloadProgress, setUpdateDownloadProgress] = useState(0)
@@ -1021,6 +1022,12 @@ function App(): React.JSX.Element {
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                   Works after installing Arokiyam from setup. Portable/dev mode cannot auto start.
                 </p>
+                {buildInfo?.isStore && (
+                  <p className="mt-2 rounded-lg border border-amber-200/70 bg-amber-50/80 px-2.5 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                    Microsoft Store install: If startup stays disabled, enable Arokiyam in Windows
+                    Settings {'>'} Apps {'>'} Startup.
+                  </p>
+                )}
               </div>
 
               <div className="">
